@@ -18,6 +18,11 @@ read -r id token < <(python3 -c 'import json,sys; j=json.load(open(sys.argv[1]))
 # Minimal PNG image test fixture.
 printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/BqkAAAAASUVORK5CYII=' | base64 -d > "$tmp/test.png"
 curl -fsS -X POST "$API_URL/api/v1/requests/$id/attachments" -H "x-upload-token: $token" -F "file=@$tmp/test.png;type=image/png" > "$tmp/attachment.json"
+file_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$tmp/attachment.json")"
+unauthorized="$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/api/v1/admin/attachments/$file_id")"
+test "$unauthorized" = "401" || { echo "private image must reject anonymous access"; exit 1; }
+curl -fsS "$API_URL/api/v1/admin/attachments/$file_id" -H "Authorization: Bearer $ADMIN_TOKEN" -o "$tmp/download.png"
+cmp "$tmp/test.png" "$tmp/download.png"
 curl -fsS "$API_URL/api/v1/admin/requests/$id" -H "Authorization: Bearer $ADMIN_TOKEN" > "$tmp/detail.json"
 python3 - "$tmp/detail.json" <<'PY'
 import json,sys
