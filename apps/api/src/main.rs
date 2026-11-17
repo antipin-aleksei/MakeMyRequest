@@ -40,6 +40,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("ADMIN_TOKEN must contain at least 32 characters".into());
     }
 
+    if env::var("REQUIRE_REMOTE_STORAGE").as_deref() == Ok("true") && env::var("R2_ENDPOINT").is_err() {
+        return Err("REQUIRE_REMOTE_STORAGE=true but R2_ENDPOINT is unset".into());
+    }
     // R2 uses the same private object-store interface as local development.
     let storage: Arc<dyn ObjectStore> = if let Ok(endpoint) = env::var("R2_ENDPOINT") {
         Arc::new(AmazonS3Builder::new()
