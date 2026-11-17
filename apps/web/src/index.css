@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.985 0.002 95);
+  --foreground: oklch(0.18 0.015 90);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --primary: oklch(0.22 0.01 90);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.005 90);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.96 0.003 90);
+  --muted-foreground: oklch(0.48 0.01 90);
+  --border: oklch(0.89 0.005 90);
+  --input: var(--border);
+  --ring: oklch(0.55 0.01 90);
+  --destructive: oklch(0.55 0.2 25);
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; background: var(--background); color: var(--foreground); font-family: Inter, system-ui, sans-serif; }
+button, input, textarea, select { font: inherit; }
