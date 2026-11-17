@@ -1,24 +1,27 @@
 mod requests;
 
-use axum::{http::{header, Method}, routing::{get, post}, Json, Router};
+use axum::{
+    extract::DefaultBodyLimit,
+    http::{header, Method},
+    routing::{get, post},
+    Json, Router,
+};
 use serde::Serialize;
 use sqlx::PgPool;
-use std::{env, net::SocketAddr};
+use std::{env, net::SocketAddr, path::PathBuf};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 #[derive(Clone)]
 struct AppState {
     db: PgPool,
+    admin_token_hash: String,
+    upload_dir: PathBuf,
 }
 
 #[derive(Serialize)]
-struct Health {
-    status: &'static str,
-}
+struct Health { status: &'static str }
 
-async fn health() -> Json<Health> {
-    Json(Health { status: "ok" })
-}
+async fn health() -> Json<Health> { Json(Health { status: "ok" }) }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,23 +30,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or_else(|_| "make_my_request_api=info,tower_http=info".into()))
         .init();
 
-    let db_url = env::var("DATABASE_URL")?;
-    let db = PgPool::connect(&db_url).await?;
+    let database_url = env::var("DATABASE_URL")?;
+    let db = PgPool::connect(&database_url).await?;
     sqlx::migrate!("./migrations").run(&db).await?;
 
-    let origin = env::var("WEB_ORIGIN").unwrap_or_else(|_| "http://localhost:5173".to_owned());
+    let admin_token = env::var("ADMIN_TOKEN")?;
+    if admin_token.len() < 32 {
+        return Err("ADMIN_TOKEN must contain at least 32 characters".into());
+    }
+
+    let upload_dir = PathBuf::from(env::var("UPLOAD_DIR").unwrap_or_else(|_| "./private_uploads".into()));
+    tokio::fs::create_dir_all(&upload_dir).await?;
+    let state = AppState {
+        db,
+        admin_token_hash: requests::digest(&admin_token),
+        upload_dir,
+    };
+
+    let origin = env::var("WEB_ORIGIN").unwrap_or_else(|_| "http://localhost:5173".into());
     let cors = CorsLayer::new()
         .allow_origin(origin.parse::<axum::http::HeaderValue>()?)
-        .allow_methods([Method::GET, Method::POST])
-        .allow_headers([header::CONTENT_TYPE]);
+        .allow_methods([Method::GET, Method::POST, Method::PATCH])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION, header::HeaderName::from_static("x-upload-token")]);
 
     let app = Router::new()
         .route("/health", get(health))
         .route("/api/v1/artist", get(requests::public_artist))
         .route("/api/v1/requests", post(requests::create_request))
+        .route("/api/v1/requests/{id}/attachments", post(requests::upload_attachment))
+        .route("/api/v1/admin/requests", get(requests::list_requests))
+        .route("/api/v1/admin/requests/{id}", get(requests::get_request).patch(requests::change_status))
+        .route("/api/v1/admin/attachments/{id}", get(requests::download_attachment))
+        .layer(DefaultBodyLimit::max(6 * 1024 * 1024))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
-        .with_state(AppState { db });
+        .with_state(state);
 
     let host = env::var("API_HOST").unwrap_or_else(|_| "0.0.0.0".into());
     let port: u16 = env::var("API_PORT").unwrap_or_else(|_| "8080".into()).parse()?;
