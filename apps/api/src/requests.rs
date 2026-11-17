@@ -85,12 +85,7 @@ pub struct CreatedRequest {
 }
 
 pub async fn public_artist(State(state): State<AppState>) -> ApiResult<Json<Artist>> {
-    let row: Option<(Uuid, String, String)> = sqlx::query_as(
-        "SELECT id, display_name, bio FROM artists WHERE active = true ORDER BY created_at LIMIT 1",
-    )
-    .fetch_optional(&state.db)
-    .await
-    .map_err(db_error)?;
+    let row = repository::public_artist(&state.db).await.map_err(db_error)?;
     let (id, display_name, bio) =
         row.ok_or_else(|| fail(StatusCode::NOT_FOUND, "artist_not_found"))?;
     Ok(Json(Artist {
@@ -176,9 +171,7 @@ pub async fn upload_attachment(
         .get("x-upload-token")
         .and_then(|v| v.to_str().ok())
         .ok_or_else(|| fail(StatusCode::UNAUTHORIZED, "unauthorized"))?;
-    let expected_hash: Option<String> = sqlx::query_scalar(
-        "SELECT upload_token_hash FROM intake_requests WHERE id = $1 AND created_at > now() - interval '24 hours'"
-    ).bind(request_id).fetch_optional(&state.db).await.map_err(db_error)?.flatten();
+    let expected_hash = repository::upload_token_hash(&state.db, request_id).await.map_err(db_error)?;
     let expected_hash =
         expected_hash.ok_or_else(|| fail(StatusCode::UNAUTHORIZED, "unauthorized"))?;
     if digest(upload_token)
@@ -213,12 +206,7 @@ pub async fn upload_attachment(
     }
     let media_type =
         detect_media(&bytes).ok_or_else(|| fail(StatusCode::BAD_REQUEST, "unsupported_file"))?;
-    let count: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM request_attachments WHERE request_id = $1")
-            .bind(request_id)
-            .fetch_one(&state.db)
-            .await
-            .map_err(db_error)?;
+    let count = repository::attachment_count(&state.db, request_id).await.map_err(db_error)?;
     if count >= 3 {
         return Err(fail(StatusCode::CONFLICT, "attachment_limit"));
     }
@@ -230,10 +218,7 @@ pub async fn upload_attachment(
         .put(&path, PutPayload::from(bytes.to_vec()))
         .await
         .map_err(|_| io_error())?;
-    let result = sqlx::query(
-        "INSERT INTO request_attachments(id, request_id, filename, media_type, size_bytes) VALUES ($1,$2,$3,$4,$5)"
-    ).bind(id).bind(request_id).bind(&original_name).bind(media_type).bind(bytes.len() as i64)
-        .execute(&state.db).await;
+    let result = repository::insert_attachment(&state.db, id, request_id, &original_name, media_type, bytes.len() as i64).await;
     if let Err(error) = result {
         let _ = state.storage.delete(&path).await;
         if let sqlx::Error::Database(ref e) = error {
@@ -268,9 +253,7 @@ pub async fn list_requests(
     headers: HeaderMap,
 ) -> ApiResult<Json<Vec<RequestListItem>>> {
     authorized(&headers, &state)?;
-    let records = sqlx::query_as::<_, RequestListItem>(
-        "SELECT id, kind::text AS kind, status::text AS status, client_name, description, created_at FROM intake_requests ORDER BY created_at DESC LIMIT 100"
-    ).fetch_all(&state.db).await.map_err(db_error)?;
+    let records = repository::list_requests(&state.db).await.map_err(db_error)?;
     Ok(Json(records))
 }
 
@@ -299,14 +282,9 @@ pub async fn get_request(
     headers: HeaderMap,
 ) -> ApiResult<Json<DetailedRequest>> {
     authorized(&headers, &state)?;
-    let request = sqlx::query_as::<_, RequestDetail>(
-        "SELECT id, kind::text AS kind, status::text AS status, client_name, contact_email, description, answers, preferred_at, created_at FROM intake_requests WHERE id = $1"
-    ).bind(id).fetch_optional(&state.db).await.map_err(db_error)?
+    let request = repository::request_detail(&state.db, id).await.map_err(db_error)?
         .ok_or_else(|| fail(StatusCode::NOT_FOUND, "not_found"))?;
-    let attachments = sqlx::query_as::<_, AttachmentRow>(
-        "SELECT id, filename, media_type, size_bytes FROM request_attachments WHERE request_id = $1 ORDER BY created_at"
-    ).bind(id).fetch_all(&state.db).await.map_err(db_error)?
-        .into_iter().map(|row| Attachment { id: row.id, filename: row.filename, media_type: row.media_type, size_bytes: row.size_bytes }).collect();
+    let attachments = repository::request_attachments(&state.db, id).await.map_err(db_error)?;
     Ok(Json(DetailedRequest {
         request,
         attachments,
@@ -337,14 +315,8 @@ pub async fn change_status(
     ) {
         return Err(fail(StatusCode::BAD_REQUEST, "invalid_status"));
     }
-    let updated =
-        sqlx::query("UPDATE intake_requests SET status = $2::request_status WHERE id = $1")
-            .bind(id)
-            .bind(body.status)
-            .execute(&state.db)
-            .await
-            .map_err(db_error)?;
-    if updated.rows_affected() == 0 {
+    let updated = repository::set_status(&state.db, id, &body.status).await.map_err(db_error)?;
+    if updated == 0 {
         return Err(fail(StatusCode::NOT_FOUND, "not_found"));
     }
     Ok(StatusCode::NO_CONTENT)
@@ -356,13 +328,8 @@ pub async fn download_attachment(
     headers: HeaderMap,
 ) -> ApiResult<Response> {
     authorized(&headers, &state)?;
-    let row =
-        sqlx::query_as::<_, (String,)>("SELECT media_type FROM request_attachments WHERE id = $1")
-            .bind(id)
-            .fetch_optional(&state.db)
-            .await
-            .map_err(db_error)?
-            .ok_or_else(|| fail(StatusCode::NOT_FOUND, "not_found"))?;
+    let media_type = repository::attachment_media_type(&state.db, id).await.map_err(db_error)?
+        .ok_or_else(|| fail(StatusCode::NOT_FOUND, "not_found"))?;
     let bytes = state
         .storage
         .get(&ObjectPath::from(id.to_string()))
@@ -374,7 +341,7 @@ pub async fn download_attachment(
     let mut response = Response::new(Body::from(bytes));
     response.headers_mut().insert(
         header::CONTENT_TYPE,
-        HeaderValue::from_str(&row.0).map_err(|_| io_error())?,
+        HeaderValue::from_str(&media_type).map_err(|_| io_error())?,
     );
     response.headers_mut().insert(
         header::CACHE_CONTROL,
@@ -411,6 +378,50 @@ mod repository {
         .bind(body.description.trim()).bind(&body.answers).bind(body.preferred_at)
         .bind(body.consent_to_contact).bind(token_hash)
         .fetch_one(pool).await?.0)
+    }
+
+    pub async fn public_artist(pool: &PgPool) -> Result<Option<(Uuid, String, String)>, sqlx::Error> {
+        sqlx::query_as("SELECT id, display_name, bio FROM artists WHERE active = true ORDER BY created_at LIMIT 1")
+            .fetch_optional(pool).await
+    }
+    pub async fn upload_token_hash(pool: &PgPool, id: Uuid) -> Result<Option<String>, sqlx::Error> {
+        Ok(sqlx::query_scalar::<_, String>(
+            "SELECT upload_token_hash FROM intake_requests WHERE id = $1 AND created_at > now() - interval '24 hours'"
+        ).bind(id).fetch_optional(pool).await?)
+    }
+    pub async fn attachment_count(pool: &PgPool, id: Uuid) -> Result<i64, sqlx::Error> {
+        sqlx::query_scalar("SELECT count(*) FROM request_attachments WHERE request_id = $1")
+            .bind(id).fetch_one(pool).await
+    }
+    pub async fn insert_attachment(pool: &PgPool, id: Uuid, request_id: Uuid, filename: &str, media_type: &str, size_bytes: i64) -> Result<(), sqlx::Error> {
+        sqlx::query("INSERT INTO request_attachments(id, request_id, filename, media_type, size_bytes) VALUES ($1,$2,$3,$4,$5)")
+            .bind(id).bind(request_id).bind(filename).bind(media_type).bind(size_bytes)
+            .execute(pool).await?;
+        Ok(())
+    }
+    pub async fn list_requests(pool: &PgPool) -> Result<Vec<super::RequestListItem>, sqlx::Error> {
+        sqlx::query_as("SELECT id, kind::text AS kind, status::text AS status, client_name, description, created_at FROM intake_requests ORDER BY created_at DESC LIMIT 100")
+            .fetch_all(pool).await
+    }
+    pub async fn request_detail(pool: &PgPool, id: Uuid) -> Result<Option<super::RequestDetail>, sqlx::Error> {
+        sqlx::query_as("SELECT id, kind::text AS kind, status::text AS status, client_name, contact_email, description, answers, preferred_at, created_at FROM intake_requests WHERE id = $1")
+            .bind(id).fetch_optional(pool).await
+    }
+    pub async fn request_attachments(pool: &PgPool, id: Uuid) -> Result<Vec<super::Attachment>, sqlx::Error> {
+        let rows = sqlx::query_as::<_, super::AttachmentRow>(
+            "SELECT id, filename, media_type, size_bytes FROM request_attachments WHERE request_id = $1 ORDER BY created_at"
+        ).bind(id).fetch_all(pool).await?;
+        Ok(rows.into_iter().map(|row| super::Attachment {
+            id: row.id, filename: row.filename, media_type: row.media_type, size_bytes: row.size_bytes
+        }).collect())
+    }
+    pub async fn set_status(pool: &PgPool, id: Uuid, status: &str) -> Result<u64, sqlx::Error> {
+        Ok(sqlx::query("UPDATE intake_requests SET status = $2::request_status WHERE id = $1")
+            .bind(id).bind(status).execute(pool).await?.rows_affected())
+    }
+    pub async fn attachment_media_type(pool: &PgPool, id: Uuid) -> Result<Option<String>, sqlx::Error> {
+        sqlx::query_scalar("SELECT media_type FROM request_attachments WHERE id = $1")
+            .bind(id).fetch_optional(pool).await
     }
 }
 
