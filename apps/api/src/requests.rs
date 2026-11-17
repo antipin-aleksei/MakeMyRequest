@@ -385,9 +385,9 @@ mod repository {
             .fetch_optional(pool).await
     }
     pub async fn upload_token_hash(pool: &PgPool, id: Uuid) -> Result<Option<String>, sqlx::Error> {
-        Ok(sqlx::query_scalar::<_, String>(
+        Ok(sqlx::query_scalar::<_, Option<String>>(
             "SELECT upload_token_hash FROM intake_requests WHERE id = $1 AND created_at > now() - interval '24 hours'"
-        ).bind(id).fetch_optional(pool).await?)
+        ).bind(id).fetch_optional(pool).await?.flatten())
     }
     pub async fn attachment_count(pool: &PgPool, id: Uuid) -> Result<i64, sqlx::Error> {
         sqlx::query_scalar("SELECT count(*) FROM request_attachments WHERE request_id = $1")
