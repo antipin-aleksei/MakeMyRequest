@@ -95,7 +95,7 @@ fn validate(body: &NewRequest) -> bool {
         && body.answers.is_object() && body.answers.to_string().len() <= 10000
         && body.consent_to_contact && body.website.is_empty()
         && (body.preferred_at.is_none() || matches!(body.kind, RequestKind::Session))
-        && body.preferred_at.is_none_or(|time| time > Utc::now())
+        && body.preferred_at.as_ref().is_none_or(|time| time > &Utc::now())
 }
 
 #[derive(Serialize)]
