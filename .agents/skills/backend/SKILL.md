@@ -1,0 +1,2 @@
+# Backend skill
+Axum routes only parse/validate request and delegate to application service. Keep SQL in repository. Use serde typed DTOs, explicit errors, tracing without PII, SQLx bind parameters. Handle startup and readiness separately. Check input limits and reject invalid values. Use Postgres unique/exclusion constraints and transactions for anything affecting calendars. Do not add AI dependencies until required.

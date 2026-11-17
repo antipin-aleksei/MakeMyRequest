@@ -1,0 +1,2 @@
+# Database skill
+All schema changes are forward-only migrations in apps/api/migrations named as SQLx expects. Never edit applied migrations. Use UUIDs, timestamptz, foreign keys and CHECK constraints, parameterized SQL, least privilege, no publicly exposed DB. Intake form answers use JSONB with explicit form version; important searchable fields use indexed normal columns. Store file metadata, not photos, in DB. Document backfills and rollback plans.
