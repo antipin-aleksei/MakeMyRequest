@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use object_store::{path::Path as ObjectPath, PutPayload};
 use subtle::ConstantTimeEq;
 use uuid::Uuid;
 
@@ -139,14 +140,14 @@ pub async fn upload_attachment(
     if count >= 3 { return Err(fail(StatusCode::CONFLICT, "attachment_limit")); }
     let id = Uuid::new_v4();
     // Random opaque filename; never serve private uploads via a static file route.
-    let path = state.upload_dir.join(id.to_string());
-    tokio::fs::write(&path, &bytes).await.map_err(|_| io_error())?;
+    let path = ObjectPath::from(id.to_string());
+    state.storage.put(&path, PutPayload::from(bytes.to_vec())).await.map_err(|_| io_error())?;
     let result = sqlx::query(
         "INSERT INTO request_attachments(id, request_id, filename, media_type, size_bytes) VALUES ($1,$2,$3,$4,$5)"
     ).bind(id).bind(request_id).bind(&original_name).bind(media_type).bind(bytes.len() as i64)
         .execute(&state.db).await;
     if let Err(error) = result {
-        let _ = tokio::fs::remove_file(path).await;
+        let _ = state.storage.delete(&path).await;
         if let sqlx::Error::Database(ref e) = error {
             if e.constraint() == Some("request_attachments_max_three") {
                 return Err(fail(StatusCode::CONFLICT, "attachment_limit"));
@@ -230,7 +231,8 @@ pub async fn download_attachment(
     let row = sqlx::query_as::<_, (String,)>("SELECT media_type FROM request_attachments WHERE id = $1")
         .bind(id).fetch_optional(&state.db).await.map_err(db_error)?
         .ok_or_else(|| fail(StatusCode::NOT_FOUND, "not_found"))?;
-    let bytes = tokio::fs::read(state.upload_dir.join(id.to_string())).await.map_err(|_| io_error())?;
+    let bytes = state.storage.get(&ObjectPath::from(id.to_string())).await
+        .map_err(|_| io_error())?.bytes().await.map_err(|_| io_error())?;
     let mut response = Response::new(Body::from(bytes));
     response.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_str(&row.0).map_err(|_| io_error())?);
     response.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
