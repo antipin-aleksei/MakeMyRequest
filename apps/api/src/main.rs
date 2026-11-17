@@ -8,14 +8,15 @@ use axum::{
 };
 use serde::Serialize;
 use sqlx::PgPool;
-use std::{env, net::SocketAddr, path::PathBuf};
+use object_store::{ObjectStore, aws::AmazonS3Builder, local::LocalFileSystem};
+use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 #[derive(Clone)]
 struct AppState {
     db: PgPool,
     admin_token_hash: String,
-    upload_dir: PathBuf,
+    storage: Arc<dyn ObjectStore>,
 }
 
 #[derive(Serialize)]
@@ -39,12 +40,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("ADMIN_TOKEN must contain at least 32 characters".into());
     }
 
-    let upload_dir = PathBuf::from(env::var("UPLOAD_DIR").unwrap_or_else(|_| "./private_uploads".into()));
-    tokio::fs::create_dir_all(&upload_dir).await?;
+    // R2 uses the same private object-store interface as local development.
+    let storage: Arc<dyn ObjectStore> = if let Ok(endpoint) = env::var("R2_ENDPOINT") {
+        Arc::new(AmazonS3Builder::new()
+            .with_endpoint(endpoint)
+            .with_bucket_name(env::var("R2_BUCKET")?)
+            .with_region("auto")
+            .with_access_key_id(env::var("R2_ACCESS_KEY_ID")?)
+            .with_secret_access_key(env::var("R2_SECRET_ACCESS_KEY")?)
+            .build()?)
+    } else {
+        let upload_dir = PathBuf::from(env::var("UPLOAD_DIR").unwrap_or_else(|_| "./private_uploads".into()));
+        tokio::fs::create_dir_all(&upload_dir).await?;
+        Arc::new(LocalFileSystem::new_with_prefix(upload_dir)?)
+    };
     let state = AppState {
         db,
         admin_token_hash: requests::digest(&admin_token),
-        upload_dir,
+        storage,
     };
 
     let origin = env::var("WEB_ORIGIN").unwrap_or_else(|_| "http://localhost:5173".into());
