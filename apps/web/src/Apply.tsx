@@ -98,7 +98,7 @@ export function ApplyForm({slug,user,navigate,onFollowUp}:{slug:string;user:User
       let failures=0;
       for(const photo of photos){try{await uploadReference(result.id,result.upload_token,photo);}catch{failures+=1;}}
       if(failures)setUploadWarning(t('uploadPartial'));
-    }catch(cause){setError(t((cause instanceof Error&&['invalid_request','invalid_dimensions','contact_required','service_unavailable'].includes(cause.message)?cause.message:'unknownError') as 'invalid_request'));}
+    }catch(cause){const code=cause instanceof Error?cause.message:'unknownError';setError(code==='invalid_preferences'?t('scheduleChooseAtLeastOne'):t((['invalid_request','invalid_dimensions','contact_required','service_unavailable'].includes(code)?code:'unknownError') as 'invalid_request'));}
     finally{setBusy(false);}
   }
   if(artistError)return <p role="alert" className="py-10 text-center text-destructive">{t('artistUnavailable')}</p>;
