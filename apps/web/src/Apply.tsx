@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { getArtist, submitRequest, uploadReference, type Artist, type Contacts, type RequestKind, type User } from './api';
+import { getArtist, submitRequest, uploadReference, type Artist, type Contacts, type RequestKind, type User, type AvailabilityPreference } from './api';
+import { SchedulePreferences } from './SchedulePreferences';
 import ContactsFields from './Contacts';
 import { useI18n } from './i18n';
 
@@ -36,9 +37,10 @@ export function ArtistPublic({slug,navigate}:{slug:string;navigate:(path:string)
   </CardContent></Card>;
 }
 
-type Values={kind:RequestKind;name:string;description:string;style:string;placement:string;width:string;height:string;budget:string;preferredDate:string;email:string;contacts:Contacts;consent:boolean;website:string};
-function initial(user:User|null):Values{return {kind:'consultation',name:user?.display_name??'',description:'',style:'',placement:'',width:'',height:'',budget:'',preferredDate:'',email:'',contacts:user?.contact_channels??{},consent:false,website:''};}
-export function ApplyForm({slug,user,navigate}:{slug:string;user:User|null;navigate:(path:string)=>void}){
+export interface PostRequestSignup {requestId:string;claimToken:string;name:string;email:string;contacts:Contacts}
+type Values={kind:RequestKind;name:string;description:string;style:string;placement:string;width:string;height:string;budget:string;email:string;contacts:Contacts;consent:boolean;website:string};
+function initial(user:User|null):Values{return {kind:'consultation',name:user?.display_name??'',description:'',style:'',placement:'',width:'',height:'',budget:'',email:'',contacts:user?.contact_channels??{},consent:false,website:''};}
+export function ApplyForm({slug,user,navigate,onFollowUp}:{slug:string;user:User|null;navigate:(path:string)=>void;onFollowUp:(draft:PostRequestSignup,kind:'login'|'register')=>void}){
   const {t,language}=useI18n();
   const [artist,setArtist]=useState<Artist|null>(null);
   const [artistError,setArtistError]=useState(false);
@@ -49,6 +51,8 @@ export function ApplyForm({slug,user,navigate}:{slug:string;user:User|null;navig
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const [submitted,setSubmitted]=useState('');
+  const [signupDraft,setSignupDraft]=useState<PostRequestSignup|null>(null);
+  const [preferences,setPreferences]=useState<AvailabilityPreference[]>([]);
   const [uploadWarning,setUploadWarning]=useState('');
   const [showMap,setShowMap]=useState(false);
   useEffect(()=>{let active=true;getArtist(slug).then(x=>{if(active)setArtist(x);}).catch(()=>{if(active)setArtistError(true);});return()=>{active=false;};},[slug]);
@@ -73,18 +77,24 @@ export function ApplyForm({slug,user,navigate}:{slug:string;user:User|null;navig
     const email=useSaved&&user&&Object.keys(contacts).length===0?user.email:values.email.trim();
     if(Object.values(contacts).every(x=>!x?.trim())&&!email){setError(t('contactRequired'));return;}
     if(!values.consent){setError(t('consent'));return;}
+    if(values.kind==='session'&&preferences.some(p=>!p.date_from||!p.date_to||!p.time_from||!p.time_to||p.date_from>p.date_to||p.time_from>=p.time_to)){
+      setError(t('scheduleChooseAtLeastOne'));return;
+    }
     setBusy(true);setError('');setUploadWarning('');
     try{
-      const preferred=values.kind==='session'&&values.preferredDate?new Date(values.preferredDate+'T12:00:00').toISOString():null;
       const result=await submitRequest(slug,{
         kind:values.kind,client_name:values.name.trim(),contact_email:email,contact_channels:contacts,
         description:values.description.trim(),
         answers:{style:values.style||null,placement:values.placement||null,
           ...(values.width&&values.height?{width_cm:Number(values.width),height_cm:Number(values.height)}:{}),
           budget:values.budget?Number(values.budget):null},
-        preferred_at:preferred,consent_to_contact:values.consent,website:values.website,
+        preferred_at:null,availability_preferences:values.kind==='session'?preferences:[],
+        consent_to_contact:values.consent,website:values.website,
       });
       setSubmitted(result.id);
+      if(!user && result.claim_token){
+        setSignupDraft({requestId:result.id,claimToken:result.claim_token,name:values.name.trim(),email,contacts});
+      }
       let failures=0;
       for(const photo of photos){try{await uploadReference(result.id,result.upload_token,photo);}catch{failures+=1;}}
       if(failures)setUploadWarning(t('uploadPartial'));
@@ -100,8 +110,15 @@ export function ApplyForm({slug,user,navigate}:{slug:string;user:User|null;navig
       <CheckCircle2 size={48} className="text-green-700"/><h2 className="text-2xl font-semibold">{t('successTitle')}</h2>
       <p>{t('successText')}</p>{uploadWarning&&<p role="alert" className="text-destructive">{uploadWarning}</p>}
       <p className="break-all text-xs text-muted-foreground">{t('number')}: {submitted}</p>
-      <Button variant="outline" onClick={()=>{setValues(initial(user));setSubmitted('');setStep(0);setPhotos([]);}}>{t('newRequest')}</Button>
+      {signupDraft&&<div className="w-full space-y-3 rounded-xl border border-border bg-muted/50 p-4">
+        <h3 className="font-semibold">{t('afterSubmitSignUpTitle')}</h3>
+        <p className="text-sm text-muted-foreground">{t('afterSubmitSignUpDescription')}</p>
+        {!signupDraft.email&&<p className="text-xs text-muted-foreground">{t('afterSubmitEmailRequired')}</p>}
+        <Button type="button" className="w-full" onClick={()=>onFollowUp(signupDraft,'register')}>{t('afterSubmitSignUpButton')}</Button>
+        <Button type="button" variant="ghost" className="w-full" onClick={()=>onFollowUp(signupDraft,'login')}>{t('afterSubmitSignIn')}</Button>
+      </div>}
       {user?.role==='client'&&<Button onClick={()=>navigate('/client/dashboard')}>{t('myRequests')}</Button>}
+      <Button variant="outline" onClick={()=>{setValues(initial(user));setSubmitted('');setSignupDraft(null);setPreferences([]);setStep(0);setPhotos([]);}}>{t('newRequest')}</Button>
     </CardContent></Card>:
     <Card><CardHeader>
       <CardTitle>{t('formTitle')}</CardTitle><CardDescription>{t('step')} {step+1}/2</CardDescription>
@@ -126,7 +143,7 @@ export function ApplyForm({slug,user,navigate}:{slug:string;user:User|null;navig
         {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
         <Button type="button" className="w-full" onClick={next}>{t('continue')} <ArrowRight size={16}/></Button>
         </>:<>
-          {values.kind==='session'&&<div className="space-y-2"><Label htmlFor="preferred">{t('preferredDate')}</Label><Input id="preferred" type="date" value={values.preferredDate} onChange={e=>set('preferredDate',e.target.value)}/><p className="text-xs text-muted-foreground">{t('preferredDateHint')}</p></div>}
+          {values.kind==='session'&&<SchedulePreferences slug={slug} value={preferences} onChange={setPreferences}/>} 
           <div className="space-y-2"><Label htmlFor="client-name">{t('name')}</Label><Input id="client-name" value={values.name} onChange={e=>set('name',e.target.value)} required/></div>
           {user&&<div className="space-y-3 rounded-lg bg-muted p-4">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={useSaved} onChange={e=>setUseSaved(e.target.checked)}/>{t('accountContacts')}</label>
