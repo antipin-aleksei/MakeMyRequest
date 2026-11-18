@@ -18,3 +18,5 @@ sha2 = "0.10"
 subtle = "2.6"
 object_store = { version = "0.12", features = ["aws", "fs"] }
 argon2 = "0.5"
+
+chrono-tz = "0.10"
