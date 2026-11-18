@@ -153,7 +153,6 @@ export function ArtistDashboard({user,navigate}:{user:User;navigate:(path:string
         <section className="space-y-2"><h3 className="font-semibold">{t('details')}</h3>
           {Object.entries(selected.answers).map(([k,v])=><p className="text-sm" key={k}><strong>{k}: </strong>{v??'—'}</p>)}
           {selected.preferred_at&&<p className="text-sm">{t('preferredDate')}: {new Date(selected.preferred_at).toLocaleDateString()}</p>}
-        {selected.availability_preferences?.length>0&&<div className="space-y-2"><p className="font-medium">{t('schedulePreferences')}</p>{selected.availability_preferences.map((p,i)=><p key={i} className="text-sm">{p.date_from}{p.date_from!==p.date_to?' — '+p.date_to:''}, {p.time_from}–{p.time_to}</p>)}</div>
           {selected.availability_preferences?.length>0&&<div className="space-y-2"><p className="font-medium">{t('schedulePreferences')}</p>{selected.availability_preferences.map((p,i)=><p key={i} className="text-sm">{p.date_from}{p.date_from!==p.date_to?' — '+p.date_to:''}, {p.time_from}–{p.time_to}</p>)}</div>}
         </section>
         <ContactLinks contacts={selected.contact_channels} email={selected.contact_email}/>
