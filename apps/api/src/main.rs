@@ -108,7 +108,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .delete(accounts::delete_request),
         )
         .route("/api/v1/client/requests", get(accounts::client_requests))
-        .route("/api/v1/client/requests/{id}", get(accounts::client_request))
+        .route(
+            "/api/v1/client/requests/{id}",
+            get(accounts::client_request),
+        )
         .route(
             "/api/v1/attachments/{id}",
             get(accounts::protected_attachment),
