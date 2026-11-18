@@ -1,4 +1,4 @@
-ALTER TABLE artists ADD COLUMN timezone TEXT NOT NULL DEFAULT 'Europe/Berlin';
+-- Artist timezone already exists in initial migration; preserve each artist's selected value.
 CREATE TABLE artist_working_hours (
     artist_id UUID NOT NULL REFERENCES artists(id) ON DELETE CASCADE,
     weekday SMALLINT NOT NULL CHECK (weekday BETWEEN 0 AND 6),
