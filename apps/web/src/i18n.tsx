@@ -94,6 +94,11 @@ const en = {
   claimSuccess:"Your earlier request has been added to your account.",
   claimError:"Account created, but the earlier request could not be linked automatically. Contact support with the request ID.",
   claimExpired:"The request could not be claimed; this link may have expired.",
+  artistLinksTab:'My links', artistLinksHint:'Share the profile link or the direct request form link with clients.',
+  scheduleSelectTime:'Choose a preferred time', scheduleNoTimes:'No working hours on the selected dates. Choose another date.',
+  roleMismatch:'This account belongs to a different role. Choose the correct sign-in page.',
+  welcomeBack:'Welcome back', artistHomeHint:'Your artist workspace contains requests, your profile, working hours and public links.',
+  clientHomeHint:'Your client workspace contains your requests and your contact profile.',
   oauthNote:'Social sign-in is not yet configured on this test environment.'
 } as const;
 type Keys = keyof typeof en;
@@ -191,6 +196,11 @@ const ru: Record<Keys, string> = {
   claimSuccess:"Отправленная заявка добавлена в ваш аккаунт.",
   claimError:"Аккаунт создан, но заявка не привязалась автоматически. Сохраните её номер для обращения в поддержку.",
   claimExpired:"Заявку не удалось привязать: ссылка могла истечь.",
+  artistLinksTab:'Мои ссылки', artistLinksHint:'Поделитесь с клиентами страницей мастера или прямой ссылкой на анкету.',
+  scheduleSelectTime:'Выберите удобное время', scheduleNoTimes:'В выбранные даты у мастера нет подходящих рабочих часов. Выберите другую дату.',
+  roleMismatch:'Этот аккаунт относится к другой роли. Откройте соответствующий вход.',
+  welcomeBack:'С возвращением', artistHomeHint:'В кабинете мастера находятся заявки, карточка, график и публичные ссылки.',
+  clientHomeHint:'В кабинете клиента находятся ваши заявки и контакты.',
   oauthNote:'В этом тестовом окружении социальный вход пока не настроен.'
 };
 const sr: Record<Keys, string> = {
@@ -287,6 +297,11 @@ const sr: Record<Keys, string> = {
   claimSuccess:"Prethodni zahtev je dodat na vaš nalog.",
   claimError:"Nalog je napravljen, ali zahtev nije automatski povezan. Sačuvajte broj zahteva za podršku.",
   claimExpired:"Zahtev nije moguće povezati; link je možda istekao.",
+  artistLinksTab:'Moji linkovi', artistLinksHint:'Podelite link ka profilu ili direktan link za slanje zahteva.',
+  scheduleSelectTime:'Izaberite željeno vreme', scheduleNoTimes:'Nema radnih sati za izabrane datume. Izaberite drugi datum.',
+  roleMismatch:'Ovaj nalog pripada drugoj ulozi. Otvorite odgovarajuću prijavu.',
+  welcomeBack:'Dobro došli nazad', artistHomeHint:'U nalogu majstora su zahtevi, profil, radno vreme i javni linkovi.',
+  clientHomeHint:'U nalogu klijenta su vaši zahtevi i kontakti.',
   oauthNote:'Prijava preko društvenih mreža nije podešena u ovom test okruženju.'
 };
 const dictionaries:Record<Language,Record<Keys,string>>={en,ru,sr};
