@@ -16,7 +16,7 @@ export interface Inquiry {
 export interface CreatedRequest {id:string;status:'new';upload_token:string;claim_token:string|null}
 export interface Attachment {id:string;filename:string;media_type:string;size_bytes:number}
 export interface Summary {id:string;artist_name:string;artist_slug:string|null;kind:RequestKind;status:RequestStatus;client_name:string;description:string;created_at:string}
-export interface Detail {id:string;kind:RequestKind;status:RequestStatus;client_name:string;contact_email:string;contact_channels:Contacts;description:string;answers:Record<string,string|number|null>;preferred_at:string|null;created_at:string;form_version:number;availability_preferences:AvailabilityPreference[];attachments:Attachment[]}
+export interface Detail {id:string;kind:RequestKind;status:RequestStatus;client_name:string;contact_email:string;contact_channels:Contacts;description:string;answers:Record<string,string|number|null>;preferred_at:string|null;created_at:string;form_version:number;availability_preferences:AvailabilityPreference[];availability_timezone:string|null;attachments:Attachment[]}
 const ROOT=import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 let key=sessionStorage.getItem('mmr_session')??'';
 export const hasSession=()=>Boolean(key);
