@@ -35,6 +35,7 @@ export const getMyArtist=()=>parse<Artist|null>(fetch(url('/artist/me'),{headers
 export const listArtistRequests=()=>parse<Summary[]>(fetch(url('/artist/requests'),{headers:headers()}));
 export const listClientRequests=()=>parse<Summary[]>(fetch(url('/client/requests'),{headers:headers()}));
 export const getArtistRequest=(id:string)=>parse<Detail>(fetch(url('/artist/requests/'+id),{headers:headers()}));
+export const getClientRequest=(id:string)=>parse<Detail>(fetch(url('/client/requests/'+id),{headers:headers()}));
 export async function login(email:string,password:string):Promise<AuthReply>{
   const result=await parse<AuthReply>(fetch(url('/auth/login'),{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({email,password})}));
   setSession(result.token);return result;
