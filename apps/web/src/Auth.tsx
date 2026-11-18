@@ -7,10 +7,10 @@ import { Label } from '@/components/ui/label';
 import { login, register, type Role, type User } from './api';
 import { useI18n } from './i18n';
 
-export function AuthPage({kind,role,onSuccess,navigate}:{kind:'login'|'register';role:Role;onSuccess:(u:User)=>void;navigate:(path:string)=>void}){
+export function AuthPage({kind,role,onSuccess,navigate,prefill}:{kind:'login'|'register';role:Role;onSuccess:(u:User)=>void;navigate:(path:string)=>void;prefill?:{name:string;email:string}}){
   const {t,language}=useI18n();
-  const [displayName,setDisplayName]=useState('');
-  const [email,setEmail]=useState('');
+  const [displayName,setDisplayName]=useState(prefill?.name??'');
+  const [email,setEmail]=useState(prefill?.email??'');
   const [password,setPassword]=useState('');
   const [error,setError]=useState('');
   const [busy,setBusy]=useState(false);
