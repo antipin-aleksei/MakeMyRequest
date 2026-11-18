@@ -27,12 +27,12 @@ function Home({user}:{user:User|null}){
     <div className="grid gap-4 sm:grid-cols-2">
       <Card><CardHeader><CardTitle>{t('artist')}</CardTitle><CardDescription>{t('artistSetupHint')}</CardDescription></CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <Button onClick={()=>navigate(user?.role==='artist'?'/artist/dashboard':'/auth/register/artist')}>{user?.role==='artist'?t('dashboard'):t('signUp')} <ArrowRight size={15}/></Button>
+          <Button onClick={()=>navigate('/auth/register/artist')}>{t('signUp')} <ArrowRight size={15}/></Button>
           {!user&&<Button variant="outline" onClick={()=>navigate('/auth/login/artist')}>{t('signIn')}</Button>}
         </CardContent></Card>
       <Card><CardHeader><CardTitle>{t('client')}</CardTitle><CardDescription>{t('signInToTrack')}</CardDescription></CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <Button onClick={()=>navigate(user?.role==='client'?'/client/dashboard':'/auth/register/client')}>{user?.role==='client'?t('myRequests'):t('signUp')} <ArrowRight size={15}/></Button>
+          <Button onClick={()=>navigate('/auth/register/client')}>{t('signUp')} <ArrowRight size={15}/></Button>
           {!user&&<Button variant="outline" onClick={()=>navigate('/auth/login/client')}>{t('signIn')}</Button>}
         </CardContent></Card>
     </div>
