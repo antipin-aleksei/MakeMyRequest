@@ -73,6 +73,18 @@ test "$(curl -s -o /dev/null -w '%{http_code}' "$api/attachments/$file_id" -H "A
 curl -fsS -X POST "$api/auth/register" -H 'Content-Type: application/json' \
   -d '{"display_name":"Smoke Client","email":"smoke-client@example.invalid","password":"very-long-test-password","role":"client","preferred_language":"sr"}' > "$tmp/client.json"
 client_token="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["token"])' "$tmp/client.json")"
+# Sign-in respects the selected portal; the wrong role must not receive a session.
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/auth/login" -H 'Content-Type: application/json' \
+  -d '{"email":"smoke-client@example.invalid","password":"very-long-test-password","expected_role":"artist"}')" = "403"
+curl -fsS -X POST "$api/auth/login" -H 'Content-Type: application/json' \
+  -d '{"email":"smoke-client@example.invalid","password":"very-long-test-password","expected_role":"client"}' > "$tmp/client-login.json"
+python3 - "$tmp/client-login.json" <<'PY'
+import json,sys
+assert json.load(open(sys.argv[1]))['user']['role']=='client'
+PY
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/auth/login" -H 'Content-Type: application/json' \
+  -d '{"email":"smoke-artist@example.invalid","password":"very-long-test-password","expected_role":"client"}')" = "403"
+
 claim_token="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["claim_token"])' "$tmp/request.json")"
 curl -fsS -X POST "$api/client/requests/$id/claim" -H "Authorization: Bearer $client_token" -H 'Content-Type: application/json' \
   -d "{\"claim_token\":\"$claim_token\"}" >/dev/null
