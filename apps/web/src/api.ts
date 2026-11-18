@@ -45,8 +45,8 @@ export const getClientRequest=(id:string)=>parse<Detail>(fetch(url('/client/requ
 export const claimGuestRequest=(id:string,claim_token:string)=>parse<void>(fetch(url('/client/requests/'+id+'/claim'),{
   method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({claim_token}),
 }));
-export async function login(email:string,password:string):Promise<AuthReply>{
-  const result=await parse<AuthReply>(fetch(url('/auth/login'),{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({email,password})}));
+export async function login(email:string,password:string,expected_role:Role):Promise<AuthReply>{
+  const result=await parse<AuthReply>(fetch(url('/auth/login'),{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({email,password,expected_role})}));
   setSession(result.token);return result;
 }
 export async function register(display_name:string,email:string,password:string,role:Role,preferred_language:string):Promise<AuthReply>{
