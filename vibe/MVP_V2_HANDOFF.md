@@ -37,3 +37,13 @@ An existing staging request is stored under a legacy placeholder artist (verifie
 
 ## After integration
 Upgrade staging branch and deploy both Render services with autodeploy disabled. Verify live status and /health; inspect Render logs for API migration and DB health. Do not publish as a production service until security blockers are removed.
+
+## Deployment evidence — 2026-11-18
+- GitHub Actions latest verified source commit ed826264: web build, Rust fmt/clippy/unit and PostgreSQL-backed HTTP integration all passed: https://github.com/antipin-aleksei/MakeMyRequest/actions/runs/44289469087
+- Source promoted to staging branch at commit f23a0b233506992691b849307e7699adccaeb361.
+- Render API deploy dep-dbuo83gm7kps73d17uhg reported **live** and uses that source commit.
+- Render static web deploy dep-dbuo9g6c6qcc73aufug0 reported **live** and uses that source commit.
+- Neon staging PostgreSQL has three successful SQLx migrations, including account/session schema; the original staging request and attachment remain present. SQL count checked without exposing client details.
+- Manual interactive iOS/Android/WebView and external HTTPS HTTP fetch were **not** confirmed by independent browser tools. Verify the links below manually.
+- Public website https://makemyrequest-web-staging.onrender.com ; API https://makemyrequest-api-staging.onrender.com/health
+- Social OAuth remains blocked on developer provider configuration; real data and public launch require further security/privacy setup.
