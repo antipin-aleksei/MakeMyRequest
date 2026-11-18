@@ -71,7 +71,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let origin = env::var("WEB_ORIGIN").unwrap_or_else(|_| "http://localhost:5173".into());
     let cors = CorsLayer::new()
         .allow_origin(origin.parse::<axum::http::HeaderValue>()?)
-        .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::PUT, Method::DELETE])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PATCH,
+            Method::PUT,
+            Method::DELETE,
+        ])
         .allow_headers([
             header::CONTENT_TYPE,
             header::AUTHORIZATION,
@@ -84,9 +90,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/v1/auth/register", post(accounts::register))
         .route("/api/v1/auth/login", post(accounts::login))
         .route("/api/v1/auth/logout", post(accounts::logout))
-        .route("/api/v1/auth/me", get(accounts::me).put(accounts::update_me))
+        .route(
+            "/api/v1/auth/me",
+            get(accounts::me).put(accounts::update_me),
+        )
         .route("/api/v1/auth/providers", get(accounts::auth_providers))
-        .route("/api/v1/artist/me", get(accounts::my_artist).put(accounts::save_artist))
+        .route(
+            "/api/v1/artist/me",
+            get(accounts::my_artist).put(accounts::save_artist),
+        )
         .route("/api/v1/artist/claim-legacy", post(accounts::claim_legacy))
         .route("/api/v1/artist/requests", get(accounts::artist_requests))
         .route(
@@ -96,9 +108,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .delete(accounts::delete_request),
         )
         .route("/api/v1/client/requests", get(accounts::client_requests))
-        .route("/api/v1/attachments/{id}", get(accounts::protected_attachment))
+        .route(
+            "/api/v1/attachments/{id}",
+            get(accounts::protected_attachment),
+        )
         .route("/api/v1/artists/{slug}", get(accounts::public_artist))
-        .route("/api/v1/artists/{slug}/requests", post(accounts::create_request))
+        .route(
+            "/api/v1/artists/{slug}/requests",
+            post(accounts::create_request),
+        )
         .route(
             "/api/v1/requests/{id}/attachments",
             post(requests::upload_attachment),
