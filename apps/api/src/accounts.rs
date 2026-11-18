@@ -400,7 +400,7 @@ pub async fn create_request(
     if body.kind != "session" && !body.availability_preferences.is_empty() {
         return Err(fail(StatusCode::BAD_REQUEST, "invalid_preferences"));
     }
-    schedule::validate_preferences(&state.db, artist_id, &body.availability_preferences).await?;
+    let preference_timezone = schedule::validate_preferences(&state.db, artist_id, &body.availability_preferences).await?;
 
     let name = if body.client_name.trim().is_empty() {
         account
@@ -460,13 +460,14 @@ pub async fn create_request(
     };
     let claim_hash = claim_token.as_ref().map(|token| requests::digest(token));
     let id = sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO intake_requests(artist_id,client_user_id,kind,client_name,contact_email,contact_channels,description,answers,preferred_at,consent_to_contact,form_version,upload_token_hash,availability_preferences,claim_token_hash) VALUES($1,$2,$3::request_kind,$4,$5,$6,$7,$8,$9,true,3,$10,$11,$12) RETURNING id",
+        "INSERT INTO intake_requests(artist_id,client_user_id,kind,client_name,contact_email,contact_channels,description,answers,preferred_at,consent_to_contact,form_version,upload_token_hash,availability_preferences,claim_token_hash,availability_timezone) VALUES($1,$2,$3::request_kind,$4,$5,$6,$7,$8,$9,true,3,$10,$11,$12,$13) RETURNING id",
     )
     .bind(artist_id).bind(account.as_ref().map(|u| u.id)).bind(&body.kind)
     .bind(name).bind(&email).bind(channels).bind(body.description.trim())
     .bind(body.answers).bind(body.preferred_at).bind(requests::digest(&upload_token))
     .bind(serde_json::to_value(&body.availability_preferences).map_err(|_|fail(StatusCode::BAD_REQUEST,"invalid_preferences"))?)
     .bind(claim_hash)
+    .bind(preference_timezone)
     .fetch_one(&state.db).await.map_err(db_error)?;
     Ok((
         StatusCode::CREATED,
@@ -557,6 +558,7 @@ pub struct Detail {
     created_at: DateTime<Utc>,
     form_version: i32,
     availability_preferences: Value,
+    availability_timezone: Option<String>,
 }
 #[derive(Serialize, sqlx::FromRow)]
 pub struct Attachment {
@@ -580,7 +582,7 @@ pub async fn client_request(
     let user = authenticated(&headers, &state.db).await?;
     guard_role(&user, "client")?;
     let detail = sqlx::query_as::<_, Detail>(
-        "SELECT id,kind::text AS kind,status::text AS status,client_name,contact_email,contact_channels,description,answers,preferred_at,created_at,form_version,availability_preferences FROM intake_requests WHERE id=$1 AND client_user_id=$2",
+        "SELECT id,kind::text AS kind,status::text AS status,client_name,contact_email,contact_channels,description,answers,preferred_at,created_at,form_version,availability_preferences,availability_timezone FROM intake_requests WHERE id=$1 AND client_user_id=$2",
     )
     .bind(id).bind(user.id).fetch_optional(&state.db).await.map_err(db_error)?
     .ok_or_else(|| fail(StatusCode::NOT_FOUND, "not_found"))?;
@@ -601,7 +603,7 @@ pub async fn artist_request(
     let user = authenticated(&headers, &state.db).await?;
     guard_role(&user, "artist")?;
     let detail=sqlx::query_as::<_,Detail>(
-        "SELECT r.id,r.kind::text AS kind,r.status::text AS status,r.client_name,r.contact_email,r.contact_channels,r.description,r.answers,r.preferred_at,r.created_at,r.form_version,r.availability_preferences FROM intake_requests r JOIN artists a ON a.id=r.artist_id WHERE r.id=$1 AND a.user_id=$2",
+        "SELECT r.id,r.kind::text AS kind,r.status::text AS status,r.client_name,r.contact_email,r.contact_channels,r.description,r.answers,r.preferred_at,r.created_at,r.form_version,r.availability_preferences,r.availability_timezone FROM intake_requests r JOIN artists a ON a.id=r.artist_id WHERE r.id=$1 AND a.user_id=$2",
     ).bind(id).bind(user.id).fetch_optional(&state.db).await.map_err(db_error)?
     .ok_or_else(|| fail(StatusCode::NOT_FOUND,"not_found"))?;
     let attachments=sqlx::query_as::<_,Attachment>(
