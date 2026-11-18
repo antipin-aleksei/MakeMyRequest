@@ -18,11 +18,11 @@ export function AuthPage({kind,role,onSuccess,navigate,prefill}:{kind:'login'|'r
     event.preventDefault();if(busy)return;
     setBusy(true);setError('');
     try{
-      const reply=kind==='login'?await login(email,password):await register(displayName,email,password,role,language);
+      const reply=kind==='login'?await login(email,password,role):await register(displayName,email,password,role,language);
       onSuccess(reply.user);
     }catch(cause){const code=cause instanceof Error?cause.message:'unknownError';setError(
       code==='email_in_use'?t('email_in_use'):code==='invalid_credentials'?t('invalid_credentials'):
-      code==='invalid_registration'?t('invalidRegistration'):t('unknownError')
+      code==='invalid_registration'?t('invalidRegistration'):code==='role_mismatch'?t('roleMismatch'):t('unknownError')
     );}finally{setBusy(false);}
   }
   return <div className="mx-auto w-full max-w-md">
@@ -42,7 +42,7 @@ export function AuthPage({kind,role,onSuccess,navigate,prefill}:{kind:'login'|'r
           {error&&<p role="alert" className="rounded-md border border-destructive px-3 py-2 text-sm text-destructive">{error}</p>}
           <Button className="w-full" type="submit" disabled={busy}>{busy?t('loading'):(kind==='login'?t('signIn'):t('signUp'))}</Button>
         </form>
-        <Button variant="ghost" className="w-full" onClick={()=>navigate(kind==='login'?'/auth/register/'+role:'/auth/login')}>{kind==='login'?t('noAccount'):t('alreadyHaveAccount')} {kind==='login'?t('signUp'):t('signIn')}</Button>
+        <Button variant="ghost" className="w-full" onClick={()=>navigate(kind==='login'?'/auth/register/'+role:'/auth/login/'+role)}>{kind==='login'?t('noAccount'):t('alreadyHaveAccount')} {kind==='login'?t('signUp'):t('signIn')}</Button>
         <div className="border-t border-border pt-4">
           <p className="mb-3 text-sm font-medium">{t('oauthTitle')}</p>
           <div className="grid grid-cols-3 gap-2">
