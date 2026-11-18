@@ -512,7 +512,9 @@ pub struct FullDetail {
 }
 
 pub async fn client_request(
-    State(state): State<AppState>, Path(id): Path<Uuid>, headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    headers: HeaderMap,
 ) -> ApiResult<Json<FullDetail>> {
     let user = authenticated(&headers, &state.db).await?;
     guard_role(&user, "client")?;
@@ -524,7 +526,10 @@ pub async fn client_request(
     let attachments = sqlx::query_as::<_, Attachment>(
         "SELECT id,filename,media_type,size_bytes FROM request_attachments WHERE request_id=$1 ORDER BY created_at",
     ).bind(id).fetch_all(&state.db).await.map_err(db_error)?;
-    Ok(Json(FullDetail{ detail, attachments }))
+    Ok(Json(FullDetail {
+        detail,
+        attachments,
+    }))
 }
 
 pub async fn artist_request(
