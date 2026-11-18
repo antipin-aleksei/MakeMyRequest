@@ -100,7 +100,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/api/v1/artist/me",
             get(accounts::my_artist).put(accounts::save_artist),
         )
-        .route("/api/v1/artist/schedule", get(schedule::my_schedule).put(schedule::save_schedule))
+        .route(
+            "/api/v1/artist/schedule",
+            get(schedule::my_schedule).put(schedule::save_schedule),
+        )
         .route("/api/v1/artist/claim-legacy", post(accounts::claim_legacy))
         .route("/api/v1/artist/requests", get(accounts::artist_requests))
         .route(
@@ -114,13 +117,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/api/v1/client/requests/{id}",
             get(accounts::client_request),
         )
-        .route("/api/v1/client/requests/{id}/claim", post(accounts::claim_guest_request))
+        .route(
+            "/api/v1/client/requests/{id}/claim",
+            post(accounts::claim_guest_request),
+        )
         .route(
             "/api/v1/attachments/{id}",
             get(accounts::protected_attachment),
         )
         .route("/api/v1/artists/{slug}", get(accounts::public_artist))
-        .route("/api/v1/artists/{slug}/schedule", get(schedule::public_schedule))
+        .route(
+            "/api/v1/artists/{slug}/schedule",
+            get(schedule::public_schedule),
+        )
         .route(
             "/api/v1/artists/{slug}/requests",
             post(accounts::create_request),
