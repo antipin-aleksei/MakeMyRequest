@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowLeft, ExternalLink, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeft, CalendarClock, ClipboardList, ExternalLink, RefreshCw, Trash2, UserRound } from 'lucide-react';
+import ArtistSchedule from './ArtistSchedule';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -88,7 +89,7 @@ export function ArtistDashboard({user,navigate}:{user:User;navigate:(path:string
   const {t}=useI18n();
   const [profile,setProfile]=useState<Artist|null>(null);
   const [loaded,setLoaded]=useState(false);
-  const [editing,setEditing]=useState(false);
+  const [tab,setTab]=useState<'requests'|'profile'|'schedule'>('requests');
   const [items,setItems]=useState<Summary[]>([]);
   const [filter,setFilter]=useState<RequestStatus|'all'>('all');
   const [selected,setSelected]=useState<Detail|null>(null);
@@ -98,7 +99,7 @@ export function ArtistDashboard({user,navigate}:{user:User;navigate:(path:string
   const [oldKey,setOldKey]=useState('');
   const [importOpen,setImportOpen]=useState(false);
   useEffect(()=>{let active=true;
-    Promise.all([getMyArtist(),listArtistRequests()]).then(([artist,records])=>{if(active){setProfile(artist);setItems(records);setLoaded(true);}})
+    Promise.all([getMyArtist(),listArtistRequests()]).then(([artist,records])=>{if(active){setProfile(artist);setItems(records);if(!artist)setTab('profile');setLoaded(true);}})
       .catch(cause=>{if(active){setError(translateError(cause,t));setLoaded(true);}});
     return()=>{active=false;};
   },[t]);
@@ -112,19 +113,38 @@ export function ArtistDashboard({user,navigate}:{user:User;navigate:(path:string
   const link=(suffix='')=>window.location.origin+'/#/a/'+profile?.slug+suffix;
   const copy=(text:string)=>{void navigator.clipboard.writeText(text).then(()=>setNotice(t('copied'))).catch(()=>setNotice(text));};
   if(!loaded)return <p className="py-10 text-center">{t('loading')}</p>;
-  return <div className="mx-auto max-w-4xl space-y-6">
-    <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-semibold">{t('requestsInbox')}</h1>{profile&&!editing&&<Button variant="outline" onClick={()=>setEditing(true)}>{t('editProfile')}</Button>}</div>
+  return <div className="mx-auto max-w-5xl space-y-6">
+    <h1 className="text-2xl font-semibold">{t('dashboard')}</h1>
     {error&&<p role="alert" className="rounded-lg border border-destructive p-3 text-sm text-destructive">{error}</p>}
     {notice&&<p role="status" className="rounded-lg bg-secondary p-3 text-sm">{notice}</p>}
-    {(!profile||editing)&&<ArtistProfileEditor key={profile?.id??'new'} user={user} current={profile} onSave={value=>{setProfile(value);setEditing(false);setNotice(t('profileUpdated'));}}/>}
-    {profile&&<><Card><CardContent className="space-y-3 pt-6">
+    <div className="grid gap-5 md:grid-cols-[232px_minmax(0,1fr)]">
+      <aside className="self-start space-y-3 rounded-xl border border-border bg-card p-3 md:sticky md:top-4">
+        <div className="hidden border-b border-border px-3 pb-4 pt-2 md:block">
+          <p className="text-sm font-semibold">{profile?.display_name??user.display_name}</p>
+          <p className="break-all text-xs text-muted-foreground">{profile?.city??user.email}</p>
+        </div>
+        <nav aria-label={t('artistNavigation')} className="grid grid-cols-3 gap-1 md:grid-cols-1">
+          {([
+            ['requests',ClipboardList,t('requestsInbox')],
+            ['profile',UserRound,t('artistInfoTab')],
+            ['schedule',CalendarClock,t('scheduleTitle')],
+          ] as const).map(([id,Icon,label])=><button key={id} type="button" aria-current={tab===id?'page':undefined}
+            className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 py-2 text-center text-xs font-medium transition-colors md:justify-start md:px-3 md:text-sm ${tab===id?'bg-primary text-primary-foreground':'text-muted-foreground hover:bg-muted'}`}
+            onClick={()=>{setTab(id);setSelected(null);}}><Icon size={17}/><span>{label}</span></button>)}
+        </nav>
+      </aside>
+      <section className="min-w-0 space-y-5">
+      {tab==='profile'&&<ArtistProfileEditor key={profile?.id??'new'} user={user} current={profile} onSave={value=>{setProfile(value);setNotice(t('profileUpdated'));}}/>}
+      {tab==='schedule'&&(profile?<ArtistSchedule/>:<p className="text-sm text-muted-foreground">{t('saveFirst')}</p>)}
+      {tab==='requests'&&!profile&&<p className="text-sm text-muted-foreground">{t('saveFirst')}</p>}
+      {tab==='profile'&&profile&&<Card><CardContent className="space-y-3 pt-6">
       <p className="font-medium">{t('publicPage')}</p>
       <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={()=>copy(link())}>{t('copy')}: {t('publicPage')}</Button>
         <Button size="sm" variant="outline" onClick={()=>copy(link('/apply'))}>{t('copy')}: {t('bookingLink')}</Button>
         <Button size="sm" onClick={()=>navigate('/a/'+profile.slug)}>{t('view')} <ExternalLink size={15}/></Button></div>
       <p className="break-all text-xs text-muted-foreground">{link('/apply')}</p>
-    </CardContent></Card>
-    <Card><CardHeader><CardTitle>{t('requestsInbox')}</CardTitle><CardDescription>{items.length}</CardDescription></CardHeader><CardContent className="space-y-4">
+    </CardContent></Card>}
+    {tab==='requests'&&profile&&<><Card><CardHeader><CardTitle>{t('requestsInbox')}</CardTitle><CardDescription>{items.length}</CardDescription></CardHeader><CardContent className="space-y-4">
       {selected?<div className="space-y-5">
         <Button variant="ghost" size="sm" onClick={()=>setSelected(null)}><ArrowLeft size={16}/>{t('back')}</Button>
         <h2 className="text-xl font-semibold">{selected.client_name}</h2>
@@ -133,6 +153,8 @@ export function ArtistDashboard({user,navigate}:{user:User;navigate:(path:string
         <section className="space-y-2"><h3 className="font-semibold">{t('details')}</h3>
           {Object.entries(selected.answers).map(([k,v])=><p className="text-sm" key={k}><strong>{k}: </strong>{v??'—'}</p>)}
           {selected.preferred_at&&<p className="text-sm">{t('preferredDate')}: {new Date(selected.preferred_at).toLocaleDateString()}</p>}
+        {selected.availability_preferences?.length>0&&<div className="space-y-2"><p className="font-medium">{t('schedulePreferences')}</p>{selected.availability_preferences.map((p,i)=><p key={i} className="text-sm">{p.date_from}{p.date_from!==p.date_to?' — '+p.date_to:''}, {p.time_from}–{p.time_to}</p>)}</div>
+          {selected.availability_preferences?.length>0&&<div className="space-y-2"><p className="font-medium">{t('schedulePreferences')}</p>{selected.availability_preferences.map((p,i)=><p key={i} className="text-sm">{p.date_from}{p.date_from!==p.date_to?' — '+p.date_to:''}, {p.time_from}–{p.time_to}</p>)}</div>}
         </section>
         <ContactLinks contacts={selected.contact_channels} email={selected.contact_email}/>
         {selected.attachments.length>0&&<section className="space-y-3"><h3 className="font-semibold">{t('references')}</h3><div className="grid gap-4 sm:grid-cols-2">{selected.attachments.map(x=><PrivateImage key={x.id} id={x.id} alt={x.filename}/>)}</div></section>}
@@ -156,6 +178,8 @@ export function ArtistDashboard({user,navigate}:{user:User;navigate:(path:string
         <Button type="button" onClick={()=>void claim()} disabled={busy||!oldKey}>{t('import')}</Button></div>}
     </CardContent></Card>
     </>}
+      </section>
+    </div>
   </div>;
 }
 export function ClientDashboard({user,onUserChanged}:{user:User;onUserChanged:(u:User)=>void}){
