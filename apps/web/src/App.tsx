@@ -35,6 +35,7 @@ function Shell(){
   const [pendingFollowUp,setPendingFollowUp]=useState<PostRequestSignup|null>(null);
   const [claimNotice,setClaimNotice]=useState('');
   const [claimFailed,setClaimFailed]=useState(false);
+  const [clientRefresh,setClientRefresh]=useState(0);
   const [loading,setLoading]=useState(hasSession());
   useEffect(()=>{const handler=()=>setRoute(getPath());window.addEventListener('hashchange',handler);return()=>window.removeEventListener('hashchange',handler);},[]);
   useEffect(()=>{if(user && !localStorage.getItem('mmr_lang'))setLanguage(user.preferred_language);},[user,setLanguage]);
@@ -47,7 +48,7 @@ function Shell(){
       setUser(current);
     }
     await claimGuestRequest(draft.requestId,draft.claimToken);
-    setPendingFollowUp(null);setClaimFailed(false);setClaimNotice(t('claimSuccess'));
+    setPendingFollowUp(null);setClaimFailed(false);setClaimNotice(t('claimSuccess'));setClientRefresh(v=>v+1);
   }
   function signedIn(value:User){
     setUser(value);
@@ -68,7 +69,7 @@ function Shell(){
   if(artistSlug&&bits.length===2)content=<ArtistPublic key={artistSlug} slug={artistSlug} navigate={navigate}/>;
   else if(artistSlug&&bits[2]==='apply')content=<ApplyForm key={artistSlug} slug={artistSlug} user={user} navigate={navigate} onFollowUp={followUp}/>;
   else if(route==='/artist/dashboard'||route==='/admin')content=user?.role==='artist'?<ArtistDashboard user={user} navigate={navigate}/>:<AuthPage kind="login" role="artist" onSuccess={signedIn} navigate={navigate}/>;
-  else if(route==='/client/dashboard')content=user?.role==='client'?<ClientDashboard user={user} onUserChanged={setUser}/>:<AuthPage kind="login" role="client" onSuccess={signedIn} navigate={navigate}/>;
+  else if(route==='/client/dashboard')content=user?.role==='client'?<ClientDashboard key={clientRefresh} user={user} onUserChanged={setUser}/>:<AuthPage kind="login" role="client" onSuccess={signedIn} navigate={navigate}/>;
   else if(auth)content=<AuthPage kind={bits[1]==='register'?'register':'login'} role={role} onSuccess={signedIn} navigate={navigate} prefill={role==='client'&&pendingFollowUp?pendingFollowUp:undefined}/>;
   else content=<Home user={user}/>;
   return <div className="min-h-svh bg-background text-foreground">
