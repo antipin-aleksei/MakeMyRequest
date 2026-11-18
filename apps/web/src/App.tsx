@@ -3,9 +3,9 @@ import { ArrowRight, HeartHandshake, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AuthPage } from './Auth';
-import { ApplyForm, ArtistPublic } from './Apply';
+import { ApplyForm, ArtistPublic, type PostRequestSignup } from './Apply';
 import { ArtistDashboard, ClientDashboard } from './Dashboard';
-import { getMe, hasSession, logout, type Role, type User } from './api';
+import { claimGuestRequest, getMe, hasSession, logout, updateMe, type Role, type User } from './api';
 import { LanguageProvider, LanguageSwitch, useI18n } from './i18n';
 
 function getPath():string{return (window.location.hash.slice(1)||'/').split('?')[0];}
@@ -32,22 +32,44 @@ function Shell(){
   const {t,setLanguage}=useI18n();
   const [route,setRoute]=useState(getPath);
   const [user,setUser]=useState<User|null>(null);
+  const [pendingFollowUp,setPendingFollowUp]=useState<PostRequestSignup|null>(null);
+  const [claimNotice,setClaimNotice]=useState('');
+  const [claimFailed,setClaimFailed]=useState(false);
   const [loading,setLoading]=useState(hasSession());
   useEffect(()=>{const handler=()=>setRoute(getPath());window.addEventListener('hashchange',handler);return()=>window.removeEventListener('hashchange',handler);},[]);
   useEffect(()=>{if(user && !localStorage.getItem('mmr_lang'))setLanguage(user.preferred_language);},[user,setLanguage]);
   useEffect(()=>{if(!hasSession())return;getMe().then(setUser).catch(()=>{sessionStorage.removeItem('mmr_session');window.location.reload();}).finally(()=>setLoading(false));},[]);
   async function leave(){await logout();setUser(null);navigate('/');}
-  function signedIn(value:User){setUser(value);navigate(value.role==='artist'?'/artist/dashboard':'/client/dashboard');}
+  async function finishClaim(user:User,draft:PostRequestSignup){
+    let current=user;
+    if(Object.keys(draft.contacts).length){
+      current=await updateMe(current.display_name,current.preferred_language,{...draft.contacts,...current.contact_channels});
+      setUser(current);
+    }
+    await claimGuestRequest(draft.requestId,draft.claimToken);
+    setPendingFollowUp(null);setClaimFailed(false);setClaimNotice(t('claimSuccess'));
+  }
+  function signedIn(value:User){
+    setUser(value);
+    if(pendingFollowUp&&value.role==='client'){
+      void finishClaim(value,pendingFollowUp).catch(()=>{setClaimFailed(true);setClaimNotice(t('claimError'));});
+    }
+    navigate(value.role==='artist'?'/artist/dashboard':'/client/dashboard');
+  }
+  function followUp(draft:PostRequestSignup,kind:'login'|'register'){
+    setPendingFollowUp(draft);setClaimNotice('');setClaimFailed(false);
+    navigate('/auth/'+kind+'/client');
+  }
   const bits=route.split('/').filter(Boolean);
   const artistSlug=bits[0]==='a'?bits[1]:undefined;
   const auth=bits[0]==='auth';
   const role:Role=bits[2]==='artist'?'artist':'client';
   let content;
   if(artistSlug&&bits.length===2)content=<ArtistPublic key={artistSlug} slug={artistSlug} navigate={navigate}/>;
-  else if(artistSlug&&bits[2]==='apply')content=<ApplyForm key={artistSlug} slug={artistSlug} user={user} navigate={navigate}/>;
+  else if(artistSlug&&bits[2]==='apply')content=<ApplyForm key={artistSlug} slug={artistSlug} user={user} navigate={navigate} onFollowUp={followUp}/>;
   else if(route==='/artist/dashboard'||route==='/admin')content=user?.role==='artist'?<ArtistDashboard user={user} navigate={navigate}/>:<AuthPage kind="login" role="artist" onSuccess={signedIn} navigate={navigate}/>;
   else if(route==='/client/dashboard')content=user?.role==='client'?<ClientDashboard user={user} onUserChanged={setUser}/>:<AuthPage kind="login" role="client" onSuccess={signedIn} navigate={navigate}/>;
-  else if(auth)content=<AuthPage kind={bits[1]==='register'?'register':'login'} role={role} onSuccess={signedIn} navigate={navigate}/>;
+  else if(auth)content=<AuthPage kind={bits[1]==='register'?'register':'login'} role={role} onSuccess={signedIn} navigate={navigate} prefill={role==='client'&&pendingFollowUp?pendingFollowUp:undefined}/>;
   else content=<Home user={user}/>;
   return <div className="min-h-svh bg-background text-foreground">
     <header className="border-b border-border bg-card"><div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
@@ -57,6 +79,10 @@ function Shell(){
       </div>
     </div></header>
     <main className="mx-auto w-full max-w-5xl px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-8">
+      {claimNotice&&<div role="status" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted p-3 text-sm">
+        <span>{claimNotice}</span>
+        {claimFailed&&pendingFollowUp&&user?.role==='client'&&<Button variant="outline" size="sm" onClick={()=>void finishClaim(user,pendingFollowUp).catch(()=>setClaimNotice(t('claimError')))}>{t('continue')}</Button>}
+      </div>}
       {loading?<p className="py-12 text-center">{t('loading')}</p>:content}
     </main>
     <footer className="mx-auto max-w-5xl border-t border-border px-4 py-6 text-center text-xs text-muted-foreground">{t('privacy')}</footer>
