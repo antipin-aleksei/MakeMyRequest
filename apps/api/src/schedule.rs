@@ -192,12 +192,12 @@ pub async fn validate_preferences(
     db: &PgPool,
     artist: Uuid,
     prefs: &[Preference],
-) -> ApiResult<()> {
+) -> ApiResult<Option<String>> {
     if prefs.len() > 3 {
         return Err(fail(StatusCode::BAD_REQUEST, "invalid_preferences"));
     }
     if prefs.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     let schedule = load(db, artist).await.map_err(db_error)?;
     let tz = schedule
@@ -206,7 +206,7 @@ pub async fn validate_preferences(
         .map_err(|_| fail(StatusCode::BAD_REQUEST, "invalid_schedule"))?;
     let today = Utc::now().with_timezone(&tz).date_naive();
     if prefs.iter().all(|p| preference_valid(p, &schedule, today)) {
-        Ok(())
+        Ok(Some(schedule.timezone))
     } else {
         Err(fail(StatusCode::BAD_REQUEST, "invalid_preferences"))
     }
