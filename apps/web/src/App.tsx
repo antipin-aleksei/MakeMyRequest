@@ -29,11 +29,12 @@ function Home({user}:{user:User|null}){
   </div>;
 }
 function Shell(){
-  const {t}=useI18n();
+  const {t,setLanguage}=useI18n();
   const [route,setRoute]=useState(getPath);
   const [user,setUser]=useState<User|null>(null);
   const [loading,setLoading]=useState(hasSession());
   useEffect(()=>{const handler=()=>setRoute(getPath());window.addEventListener('hashchange',handler);return()=>window.removeEventListener('hashchange',handler);},[]);
+  useEffect(()=>{if(user && !localStorage.getItem('mmr_lang'))setLanguage(user.preferred_language);},[user,setLanguage]);
   useEffect(()=>{if(!hasSession())return;getMe().then(setUser).catch(()=>{sessionStorage.removeItem('mmr_session');window.location.reload();}).finally(()=>setLoading(false));},[]);
   async function leave(){await logout();setUser(null);navigate('/');}
   function signedIn(value:User){setUser(value);navigate(value.role==='artist'?'/artist/dashboard':'/client/dashboard');}
