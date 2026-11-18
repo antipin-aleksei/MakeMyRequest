@@ -345,7 +345,7 @@ pub async fn create_request(
     let id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO intake_requests(artist_id,client_user_id,kind,client_name,contact_email,contact_channels,description,answers,preferred_at,consent_to_contact,form_version,upload_token_hash) VALUES($1,$2,$3::request_kind,$4,$5,$6,$7,$8,$9,true,2,$10) RETURNING id",
     )
-    .bind(artist_id).bind(account.map(|u| u.id)).bind(&body.kind)
+    .bind(artist_id).bind(account.as_ref().map(|u| u.id)).bind(&body.kind)
     .bind(name).bind(&email).bind(channels).bind(body.description.trim())
     .bind(body.answers).bind(body.preferred_at).bind(requests::digest(&upload_token))
     .fetch_one(&state.db).await.map_err(db_error)?;

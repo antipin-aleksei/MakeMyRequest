@@ -19,7 +19,8 @@ let key=sessionStorage.getItem('mmr_session')??'';
 export const hasSession=()=>Boolean(key);
 export function setSession(value:string){key=value;if(value)sessionStorage.setItem('mmr_session',value);else sessionStorage.removeItem('mmr_session');}
 function headers(extra?:Record<string,string>):Record<string,string>{return {...(key?{Authorization:'Bearer '+key}:{}),...extra};}
-async function parse<T>(response:Response):Promise<T>{
+async function parse<T>(pending:Promise<Response>|Response):Promise<T>{
+  const response=await pending;
   if(!response.ok){
     const details=await response.json().catch(()=>({error:'unknownError'})) as {error?:string};
     throw new Error(details.error??'unknownError');
