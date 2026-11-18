@@ -1,6 +1,9 @@
 export type Role = 'artist' | 'client';
 export type RequestKind = 'consultation' | 'session';
 export type RequestStatus = 'new' | 'in_review' | 'needs_info' | 'accepted' | 'declined';
+export interface WorkWindow {weekday:number;start:string;end:string}
+export interface WorkSchedule {timezone:string;slots:WorkWindow[]}
+export interface AvailabilityPreference {date_from:string;date_to:string;time_from:string;time_to:string}
 export type Contacts = Partial<Record<'email'|'telegram'|'whatsapp'|'viber'|'instagram',string>>;
 export interface User { id:string; email:string; display_name:string; role:Role; preferred_language:'en'|'ru'|'sr'; contact_channels:Contacts }
 export interface AuthReply {token:string;user:User}
@@ -8,12 +11,12 @@ export interface Artist {id:string;slug:string;display_name:string;bio:string;ci
 export interface Inquiry {
   kind:RequestKind;client_name:string;contact_email:string;contact_channels:Contacts;
   description:string; answers:Record<string,string|number|null>;preferred_at:string|null;
-  consent_to_contact:boolean;website?:string;
+  consent_to_contact:boolean;website?:string;availability_preferences?:AvailabilityPreference[];
 }
-export interface CreatedRequest {id:string;status:'new';upload_token:string}
+export interface CreatedRequest {id:string;status:'new';upload_token:string;claim_token:string|null}
 export interface Attachment {id:string;filename:string;media_type:string;size_bytes:number}
 export interface Summary {id:string;artist_name:string;artist_slug:string|null;kind:RequestKind;status:RequestStatus;client_name:string;description:string;created_at:string}
-export interface Detail {id:string;kind:RequestKind;status:RequestStatus;client_name:string;contact_email:string;contact_channels:Contacts;description:string;answers:Record<string,string|number|null>;preferred_at:string|null;created_at:string;form_version:number;attachments:Attachment[]}
+export interface Detail {id:string;kind:RequestKind;status:RequestStatus;client_name:string;contact_email:string;contact_channels:Contacts;description:string;answers:Record<string,string|number|null>;preferred_at:string|null;created_at:string;form_version:number;availability_preferences:AvailabilityPreference[];attachments:Attachment[]}
 const ROOT=import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 let key=sessionStorage.getItem('mmr_session')??'';
 export const hasSession=()=>Boolean(key);
@@ -30,12 +33,18 @@ async function parse<T>(pending:Promise<Response>|Response):Promise<T>{
 }
 const url=(path:string)=>ROOT+'/api/v1'+path;
 export const getArtist=(slug:string)=>parse<Artist>(fetch(url('/artists/'+encodeURIComponent(slug))));
+export const getPublicSchedule=(slug:string)=>parse<WorkSchedule>(fetch(url('/artists/'+encodeURIComponent(slug)+'/schedule')));
+export const getMySchedule=()=>parse<WorkSchedule>(fetch(url('/artist/schedule'),{headers:headers()}));
+export const saveMySchedule=(schedule:WorkSchedule)=>parse<WorkSchedule>(fetch(url('/artist/schedule'),{method:'PUT',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify(schedule)}));
 export const getMe=()=>parse<User>(fetch(url('/auth/me'),{headers:headers()}));
 export const getMyArtist=()=>parse<Artist|null>(fetch(url('/artist/me'),{headers:headers()}));
 export const listArtistRequests=()=>parse<Summary[]>(fetch(url('/artist/requests'),{headers:headers()}));
 export const listClientRequests=()=>parse<Summary[]>(fetch(url('/client/requests'),{headers:headers()}));
 export const getArtistRequest=(id:string)=>parse<Detail>(fetch(url('/artist/requests/'+id),{headers:headers()}));
 export const getClientRequest=(id:string)=>parse<Detail>(fetch(url('/client/requests/'+id),{headers:headers()}));
+export const claimGuestRequest=(id:string,claim_token:string)=>parse<void>(fetch(url('/client/requests/'+id+'/claim'),{
+  method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({claim_token}),
+}));
 export async function login(email:string,password:string):Promise<AuthReply>{
   const result=await parse<AuthReply>(fetch(url('/auth/login'),{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({email,password})}));
   setSession(result.token);return result;
