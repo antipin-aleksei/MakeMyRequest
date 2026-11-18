@@ -400,7 +400,9 @@ pub async fn create_request(
     if body.kind != "session" && !body.availability_preferences.is_empty() {
         return Err(fail(StatusCode::BAD_REQUEST, "invalid_preferences"));
     }
-    let preference_timezone = schedule::validate_preferences(&state.db, artist_id, &body.availability_preferences).await?;
+    let preference_timezone =
+        schedule::validate_preferences(&state.db, artist_id, &body.availability_preferences)
+            .await?;
 
     let name = if body.client_name.trim().is_empty() {
         account
