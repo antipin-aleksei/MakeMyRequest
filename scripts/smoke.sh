@@ -45,6 +45,7 @@ import json,sys
 j=json.load(open(sys.argv[1]))
 assert len(j["availability_preferences"])==1,j
 assert j["availability_preferences"][0]["time_from"]=="13:00",j
+assert j["availability_timezone"]=="Europe/Berlin",j
 PY
 
 curl -fsS -X POST "$api/artists/smoke-artist/requests" -H 'Content-Type: application/json' \
