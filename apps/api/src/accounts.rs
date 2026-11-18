@@ -1,4 +1,5 @@
 use crate::{
+    schedule::{self, Preference},
     requests::{self, db_error, fail, ApiResult},
     AppState,
 };
@@ -27,6 +28,10 @@ pub struct User {
     role: String,
     preferred_language: String,
     contact_channels: Value,
+}
+impl User {
+    pub(crate) fn id(&self) -> Uuid { self.id }
+    pub(crate) fn role(&self) -> &str { &self.role }
 }
 #[derive(Serialize)]
 pub struct AuthReply {
@@ -86,7 +91,7 @@ fn auth_token(headers: &HeaderMap) -> Option<&str> {
         .and_then(|v| v.strip_prefix("Bearer "))
         .filter(|v| v.len() == 64 && v.bytes().all(|b| b.is_ascii_hexdigit()))
 }
-async fn authenticated(headers: &HeaderMap, db: &sqlx::PgPool) -> ApiResult<User> {
+pub(crate) async fn authenticated(headers: &HeaderMap, db: &sqlx::PgPool) -> ApiResult<User> {
     let token =
         auth_token(headers).ok_or_else(|| fail(StatusCode::UNAUTHORIZED, "unauthorized"))?;
     sqlx::query_as::<_, User>(
@@ -351,6 +356,8 @@ pub struct Intake {
     consent_to_contact: bool,
     #[serde(default)]
     website: String,
+    #[serde(default)]
+    availability_preferences: Vec<Preference>,
 }
 fn empty_object() -> Value {
     serde_json::json!({})
@@ -361,6 +368,7 @@ pub struct CreatedRequest {
     id: Uuid,
     status: &'static str,
     upload_token: String,
+    claim_token: Option<String>,
 }
 pub async fn create_request(
     State(state): State<AppState>,
@@ -384,6 +392,11 @@ pub async fn create_request(
     {
         return Err(fail(StatusCode::BAD_REQUEST, "invalid_request"));
     }
+
+    if body.kind != "session" && !body.availability_preferences.is_empty() {
+        return Err(fail(StatusCode::BAD_REQUEST, "invalid_preferences"));
+    }
+    schedule::validate_preferences(&state.db, artist_id, &body.availability_preferences).await?;
 
     let name = if body.client_name.trim().is_empty() {
         account
@@ -432,12 +445,18 @@ pub async fn create_request(
         return Err(fail(StatusCode::BAD_REQUEST, "invalid_dimensions"));
     }
     let upload_token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+    let claim_token = if account.is_none() {
+        Some(format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple()))
+    } else {None};
+    let claim_hash = claim_token.as_ref().map(|token| requests::digest(token));
     let id = sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO intake_requests(artist_id,client_user_id,kind,client_name,contact_email,contact_channels,description,answers,preferred_at,consent_to_contact,form_version,upload_token_hash) VALUES($1,$2,$3::request_kind,$4,$5,$6,$7,$8,$9,true,2,$10) RETURNING id",
+        "INSERT INTO intake_requests(artist_id,client_user_id,kind,client_name,contact_email,contact_channels,description,answers,preferred_at,consent_to_contact,form_version,upload_token_hash,availability_preferences,claim_token_hash) VALUES($1,$2,$3::request_kind,$4,$5,$6,$7,$8,$9,true,3,$10,$11,$12) RETURNING id",
     )
     .bind(artist_id).bind(account.as_ref().map(|u| u.id)).bind(&body.kind)
     .bind(name).bind(&email).bind(channels).bind(body.description.trim())
     .bind(body.answers).bind(body.preferred_at).bind(requests::digest(&upload_token))
+    .bind(serde_json::to_value(&body.availability_preferences).map_err(|_|fail(StatusCode::BAD_REQUEST,"invalid_preferences"))?)
+    .bind(claim_hash)
     .fetch_one(&state.db).await.map_err(db_error)?;
     Ok((
         StatusCode::CREATED,
@@ -445,6 +464,7 @@ pub async fn create_request(
             id,
             status: "new",
             upload_token,
+            claim_token,
         }),
     ))
 }
@@ -471,6 +491,24 @@ pub async fn artist_requests(
     ).bind(user.id).fetch_all(&state.db).await.map_err(db_error)?;
     Ok(Json(rows))
 }
+#[derive(Deserialize)]
+pub struct ClaimBody { claim_token: String }
+pub async fn claim_guest_request(
+    State(state): State<AppState>,Path(id):Path<Uuid>,headers:HeaderMap,Json(body):Json<ClaimBody>,
+)->ApiResult<StatusCode>{
+    let user=authenticated(&headers,&state.db).await?;
+    guard_role(&user,"client")?;
+    if body.claim_token.len()!=64 || !body.claim_token.bytes().all(|byte|byte.is_ascii_hexdigit()){
+        return Err(fail(StatusCode::BAD_REQUEST,"invalid_claim_token"));
+    }
+    let updated=sqlx::query(
+        "UPDATE intake_requests SET client_user_id=$2, claim_token_hash=NULL WHERE id=$1 AND client_user_id IS NULL AND claim_token_hash=$3 AND created_at > now()-interval '7 days'",
+    ).bind(id).bind(user.id).bind(requests::digest(&body.claim_token))
+        .execute(&state.db).await.map_err(db_error)?;
+    if updated.rows_affected()!=1{return Err(fail(StatusCode::NOT_FOUND,"claim_not_found"));}
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub async fn client_requests(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -496,6 +534,7 @@ pub struct Detail {
     preferred_at: Option<DateTime<Utc>>,
     created_at: DateTime<Utc>,
     form_version: i32,
+    availability_preferences: Value,
 }
 #[derive(Serialize, sqlx::FromRow)]
 pub struct Attachment {
@@ -519,7 +558,7 @@ pub async fn client_request(
     let user = authenticated(&headers, &state.db).await?;
     guard_role(&user, "client")?;
     let detail = sqlx::query_as::<_, Detail>(
-        "SELECT id,kind::text AS kind,status::text AS status,client_name,contact_email,contact_channels,description,answers,preferred_at,created_at,form_version FROM intake_requests WHERE id=$1 AND client_user_id=$2",
+        "SELECT id,kind::text AS kind,status::text AS status,client_name,contact_email,contact_channels,description,answers,preferred_at,created_at,form_version,availability_preferences FROM intake_requests WHERE id=$1 AND client_user_id=$2",
     )
     .bind(id).bind(user.id).fetch_optional(&state.db).await.map_err(db_error)?
     .ok_or_else(|| fail(StatusCode::NOT_FOUND, "not_found"))?;
@@ -540,7 +579,7 @@ pub async fn artist_request(
     let user = authenticated(&headers, &state.db).await?;
     guard_role(&user, "artist")?;
     let detail=sqlx::query_as::<_,Detail>(
-        "SELECT r.id,r.kind::text AS kind,r.status::text AS status,r.client_name,r.contact_email,r.contact_channels,r.description,r.answers,r.preferred_at,r.created_at,r.form_version FROM intake_requests r JOIN artists a ON a.id=r.artist_id WHERE r.id=$1 AND a.user_id=$2",
+        "SELECT r.id,r.kind::text AS kind,r.status::text AS status,r.client_name,r.contact_email,r.contact_channels,r.description,r.answers,r.preferred_at,r.created_at,r.form_version,r.availability_preferences FROM intake_requests r JOIN artists a ON a.id=r.artist_id WHERE r.id=$1 AND a.user_id=$2",
     ).bind(id).bind(user.id).fetch_optional(&state.db).await.map_err(db_error)?
     .ok_or_else(|| fail(StatusCode::NOT_FOUND,"not_found"))?;
     let attachments=sqlx::query_as::<_,Attachment>(
