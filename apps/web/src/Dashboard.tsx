@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowLeft, CalendarClock, ClipboardList, ExternalLink, RefreshCw, Trash2, UserRound } from 'lucide-react';
+import { ArrowLeft, CalendarClock, ClipboardList, ExternalLink, Link2, RefreshCw, Trash2, UserRound } from 'lucide-react';
 import ArtistSchedule from './ArtistSchedule';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -89,7 +89,7 @@ export function ArtistDashboard({user,navigate}:{user:User;navigate:(path:string
   const {t}=useI18n();
   const [profile,setProfile]=useState<Artist|null>(null);
   const [loaded,setLoaded]=useState(false);
-  const [tab,setTab]=useState<'requests'|'profile'|'schedule'>('requests');
+  const [tab,setTab]=useState<'requests'|'profile'|'schedule'|'links'>('requests');
   const [items,setItems]=useState<Summary[]>([]);
   const [filter,setFilter]=useState<RequestStatus|'all'>('all');
   const [selected,setSelected]=useState<Detail|null>(null);
@@ -123,11 +123,12 @@ export function ArtistDashboard({user,navigate}:{user:User;navigate:(path:string
           <p className="text-sm font-semibold">{profile?.display_name??user.display_name}</p>
           <p className="break-all text-xs text-muted-foreground">{profile?.city??user.email}</p>
         </div>
-        <nav aria-label={t('artistNavigation')} className="grid grid-cols-3 gap-1 md:grid-cols-1">
+        <nav aria-label={t('artistNavigation')} className="grid grid-cols-4 gap-1 md:grid-cols-1">
           {([
             ['requests',ClipboardList,t('requestsInbox')],
             ['profile',UserRound,t('artistInfoTab')],
             ['schedule',CalendarClock,t('scheduleTitle')],
+            ['links',Link2,t('artistLinksTab')],
           ] as const).map(([id,Icon,label])=><button key={id} type="button" aria-current={tab===id?'page':undefined}
             className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 py-2 text-center text-xs font-medium transition-colors md:justify-start md:px-3 md:text-sm ${tab===id?'bg-primary text-primary-foreground':'text-muted-foreground hover:bg-muted'}`}
             onClick={()=>{setTab(id);setSelected(null);}}><Icon size={17}/><span>{label}</span></button>)}
@@ -136,13 +137,25 @@ export function ArtistDashboard({user,navigate}:{user:User;navigate:(path:string
       <section className="min-w-0 space-y-5">
       {tab==='profile'&&<ArtistProfileEditor key={profile?.id??'new'} user={user} current={profile} onSave={value=>{setProfile(value);setNotice(t('profileUpdated'));}}/>}
       {tab==='schedule'&&(profile?<ArtistSchedule/>:<p className="text-sm text-muted-foreground">{t('saveFirst')}</p>)}
+      {tab==='links'&&!profile&&<p className="text-sm text-muted-foreground">{t('saveFirst')}</p>}
       {tab==='requests'&&!profile&&<p className="text-sm text-muted-foreground">{t('saveFirst')}</p>}
-      {tab==='profile'&&profile&&<Card><CardContent className="space-y-3 pt-6">
-      <p className="font-medium">{t('publicPage')}</p>
-      <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={()=>copy(link())}>{t('copy')}: {t('publicPage')}</Button>
-        <Button size="sm" variant="outline" onClick={()=>copy(link('/apply'))}>{t('copy')}: {t('bookingLink')}</Button>
-        <Button size="sm" onClick={()=>navigate('/a/'+profile.slug)}>{t('view')} <ExternalLink size={15}/></Button></div>
-      <p className="break-all text-xs text-muted-foreground">{link('/apply')}</p>
+      {tab==='links'&&profile&&<Card><CardHeader><CardTitle>{t('artistLinksTab')}</CardTitle><CardDescription>{t('artistLinksHint')}</CardDescription></CardHeader><CardContent className="space-y-5 pt-2">
+      <div className="space-y-2">
+        <p className="text-sm font-semibold">{t('publicPage')}</p>
+        <p className="break-all rounded-md bg-muted p-3 text-xs">{link()}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={()=>copy(link())}>{t('copy')}: {t('publicPage')}</Button>
+          <Button size="sm" onClick={()=>navigate('/a/'+profile.slug)}>{t('view')} <ExternalLink size={15}/></Button>
+        </div>
+      </div>
+      <div className="space-y-2 border-t border-border pt-4">
+        <p className="text-sm font-semibold">{t('bookingLink')}</p>
+        <p className="break-all rounded-md bg-muted p-3 text-xs">{link('/apply')}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={()=>copy(link('/apply'))}>{t('copy')}: {t('bookingLink')}</Button>
+          <Button size="sm" onClick={()=>navigate('/a/'+profile.slug+'/apply')}>{t('view')} <ExternalLink size={15}/></Button>
+        </div>
+      </div>
     </CardContent></Card>}
     {tab==='requests'&&profile&&<><Card><CardHeader><CardTitle>{t('requestsInbox')}</CardTitle><CardDescription>{items.length}</CardDescription></CardHeader><CardContent className="space-y-4">
       {selected?<div className="space-y-5">
