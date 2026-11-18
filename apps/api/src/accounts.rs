@@ -54,6 +54,8 @@ pub struct Registration {
 pub struct Login {
     email: String,
     password: String,
+    #[serde(default)]
+    expected_role: Option<String>,
 }
 #[derive(Deserialize)]
 pub struct UpdateMe {
@@ -204,6 +206,11 @@ pub async fn login(
         .is_err()
     {
         return Err(fail(StatusCode::UNAUTHORIZED, "invalid_credentials"));
+    }
+    if let Some(role) = body.expected_role.as_deref() {
+        if role != result.3 {
+            return Err(fail(StatusCode::FORBIDDEN, "role_mismatch"));
+        }
     }
     Ok(Json(
         new_session(
