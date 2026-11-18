@@ -12,6 +12,16 @@ function getPath():string{return (window.location.hash.slice(1)||'/').split('?')
 function navigate(path:string){window.location.hash=path;window.scrollTo(0,0);}
 function Home({user}:{user:User|null}){
   const {t}=useI18n();
+  if(user) {
+    const isArtist=user.role==='artist';
+    return <div className="mx-auto max-w-xl space-y-6 py-10 sm:py-20 text-center">
+      <h1 className="text-3xl font-semibold">{t('welcomeBack')}, {user.display_name}</h1>
+      <p className="text-muted-foreground">{isArtist?t('artistHomeHint'):t('clientHomeHint')}</p>
+      <Button className="w-full" onClick={()=>navigate(isArtist?'/artist/dashboard':'/client/dashboard')}>
+        {isArtist?t('dashboard'):t('myRequests')} <ArrowRight size={16}/>
+      </Button>
+    </div>;
+  }
   return <div className="mx-auto max-w-3xl space-y-7 py-10 sm:py-20">
     <div className="space-y-4 text-center"><h1 className="text-3xl font-bold tracking-tight sm:text-5xl">{t('homeTitle')}</h1><p className="mx-auto max-w-xl text-muted-foreground">{t('homeSubtitle')}</p></div>
     <div className="grid gap-4 sm:grid-cols-2">
@@ -40,7 +50,7 @@ function Shell(){
   useEffect(()=>{const handler=()=>setRoute(getPath());window.addEventListener('hashchange',handler);return()=>window.removeEventListener('hashchange',handler);},[]);
   useEffect(()=>{if(user && !localStorage.getItem('mmr_lang'))setLanguage(user.preferred_language);},[user,setLanguage]);
   useEffect(()=>{if(!hasSession())return;getMe().then(setUser).catch(()=>{sessionStorage.removeItem('mmr_session');window.location.reload();}).finally(()=>setLoading(false));},[]);
-  async function leave(){await logout();setUser(null);navigate('/');}
+  async function leave(){await logout();setUser(null);setPendingFollowUp(null);navigate('/');}
   async function finishClaim(user:User,draft:PostRequestSignup){
     let current=user;
     if(Object.keys(draft.contacts).length){
@@ -68,14 +78,18 @@ function Shell(){
   let content;
   if(artistSlug&&bits.length===2)content=<ArtistPublic key={artistSlug} slug={artistSlug} navigate={navigate}/>;
   else if(artistSlug&&bits[2]==='apply')content=<ApplyForm key={artistSlug} slug={artistSlug} user={user} navigate={navigate} onFollowUp={followUp}/>;
-  else if(route==='/artist/dashboard'||route==='/admin')content=user?.role==='artist'?<ArtistDashboard user={user} navigate={navigate}/>:<AuthPage kind="login" role="artist" onSuccess={signedIn} navigate={navigate}/>;
-  else if(route==='/client/dashboard')content=user?.role==='client'?<ClientDashboard key={clientRefresh} user={user} onUserChanged={setUser}/>:<AuthPage kind="login" role="client" onSuccess={signedIn} navigate={navigate}/>;
-  else if(auth)content=<AuthPage kind={bits[1]==='register'?'register':'login'} role={role} onSuccess={signedIn} navigate={navigate} prefill={role==='client'&&pendingFollowUp?pendingFollowUp:undefined}/>;
+  else if(route==='/artist/dashboard'||route==='/admin')content=user
+    ? user.role==='artist'?<ArtistDashboard user={user} navigate={navigate}/>:<ClientDashboard key={clientRefresh} user={user} onUserChanged={setUser}/>
+    :<AuthPage kind="login" role="artist" onSuccess={signedIn} navigate={navigate}/>;
+  else if(route==='/client/dashboard')content=user
+    ? user.role==='client'?<ClientDashboard key={clientRefresh} user={user} onUserChanged={setUser}/>:<ArtistDashboard user={user} navigate={navigate}/>
+    :<AuthPage kind="login" role="client" onSuccess={signedIn} navigate={navigate}/>;
+  else if(auth)content=user?<Home user={user}/>:<AuthPage key={route} kind={bits[1]==='register'?'register':'login'} role={role} onSuccess={signedIn} navigate={navigate} prefill={role==='client'&&pendingFollowUp?pendingFollowUp:undefined}/>;
   else content=<Home user={user}/>;
   return <div className="min-h-svh bg-background text-foreground">
     <header className="border-b border-border bg-card"><div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
       <a href="/#/" className="flex items-center gap-2 font-semibold"><span className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground"><HeartHandshake size={18}/></span><span className="hidden sm:inline">{t('brand')}</span><span className="sm:hidden">MMR</span></a>
-      <div className="flex items-center gap-2"><LanguageSwitch/>{user&&<Button size="sm" variant="outline" onClick={()=>navigate(user.role==='artist'?'/artist/dashboard':'/client/dashboard')}>{t('dashboard')}</Button>}
+      <div className="flex items-center gap-2"><LanguageSwitch/>{user&&<Button size="sm" variant="outline" onClick={()=>navigate(user.role==='artist'?'/artist/dashboard':'/client/dashboard')}>{user.role==='artist'?t('dashboard'):t('myRequests')}</Button>}
         {user&&<Button size="sm" variant="ghost" onClick={()=>void leave()}><LogOut size={15}/><span className="hidden sm:inline">{t('signOut')}</span></Button>}
       </div>
     </div></header>
