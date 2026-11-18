@@ -4,7 +4,7 @@ mod requests;
 use axum::{
     extract::DefaultBodyLimit,
     http::{header, Method},
-    routing::{delete, get, patch, post, put},
+    routing::{get, post},
     Json, Router,
 };
 use object_store::{aws::AmazonS3Builder, local::LocalFileSystem, ObjectStore};
