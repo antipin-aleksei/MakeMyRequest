@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import ContactsFields from './Contacts';
 import { useI18n } from './i18n';
 import {
-  getMyArtist, getArtistRequest, importLegacy, listArtistRequests, listClientRequests,
+  getMyArtist, getArtistRequest, getClientRequest, importLegacy, listArtistRequests, listClientRequests,
   loadReference, removeRequest, saveArtist, updateMe, updateStatus,
   type Artist, type Contacts, type Detail, type RequestStatus, type Summary, type User
 } from './api';
@@ -161,6 +161,7 @@ export function ArtistDashboard({user,navigate}:{user:User;navigate:(path:string
 export function ClientDashboard({user,onUserChanged}:{user:User;onUserChanged:(u:User)=>void}){
   const {t,language}=useI18n();
   const [items,setItems]=useState<Summary[]>([]);
+  const [selected,setSelected]=useState<Detail|null>(null);
   const [contacts,setContacts]=useState<Contacts>(user.contact_channels);
   const [displayName,setDisplayName]=useState(user.display_name);
   const [error,setError]=useState('');
@@ -173,12 +174,19 @@ export function ClientDashboard({user,onUserChanged}:{user:User;onUserChanged:(u
     {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
     {notice&&<p role="status" className="rounded-md bg-secondary p-3 text-sm">{notice}</p>}
     <Card><CardHeader><CardTitle>{t('myRequests')}</CardTitle></CardHeader><CardContent className="space-y-3">
-      {items.length===0?<p className="text-sm text-muted-foreground">{t('emptyClient')}</p>:items.map(x=><div key={x.id} className="space-y-2 rounded-lg border border-border p-4">
-        <div className="flex flex-wrap justify-between gap-2"><strong>{x.artist_name}</strong><Status value={x.status}/></div>
+      {selected?<div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={()=>setSelected(null)}><ArrowLeft size={16}/>{t('back')}</Button>
+        <div className="flex items-center gap-3"><h2 className="text-lg font-semibold">{t('details')}</h2><Status value={selected.status}/></div>
+        <p className="whitespace-pre-wrap">{selected.description}</p>
+        {Object.entries(selected.answers).map(([key,value])=><p className="text-sm" key={key}><strong>{key}: </strong>{value??'—'}</p>)}
+        {selected.preferred_at&&<p className="text-sm">{t('preferredDate')}: {new Date(selected.preferred_at).toLocaleDateString()}</p>}
+        {selected.attachments.length>0&&<section className="grid gap-3 sm:grid-cols-2">{selected.attachments.map(file=><PrivateImage key={file.id} id={file.id} alt={file.filename}/>)}</section>}
+      </div>:items.length===0?<p className="text-sm text-muted-foreground">{t('emptyClient')}</p>:items.map(x=><button type="button" key={x.id} onClick={()=>{setError('');void getClientRequest(x.id).then(setSelected).catch(cause=>setError(translateError(cause,t)));}} className="flex w-full flex-col gap-2 rounded-lg border border-border p-4 text-left hover:bg-muted">
+        <div className="flex w-full flex-wrap justify-between gap-2"><strong>{x.artist_name}</strong><Status value={x.status}/></div>
         <p className="whitespace-pre-wrap text-sm">{x.description}</p>
         <p className="text-xs text-muted-foreground">{new Date(x.created_at).toLocaleString()}</p>
-        {x.artist_slug&&<a className="text-sm underline" href={'/#/a/'+x.artist_slug}>{t('publicPage')}</a>}
-      </div>)}
+        <span className="text-sm underline">{t('view')}</span>
+      </button>)}
     </CardContent></Card>
     <Card><CardHeader><CardTitle>{t('editAccount')}</CardTitle><CardDescription>{t('accountContacts')}</CardDescription></CardHeader><CardContent>
       <form onSubmit={save} className="space-y-4"><div className="space-y-2"><Label htmlFor="profile-name">{t('name')}</Label><Input id="profile-name" value={displayName} minLength={2} onChange={e=>setDisplayName(e.target.value)}/></div>
