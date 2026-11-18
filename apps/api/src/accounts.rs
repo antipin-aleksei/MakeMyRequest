@@ -1,6 +1,6 @@
 use crate::{
-    schedule::{self, Preference},
     requests::{self, db_error, fail, ApiResult},
+    schedule::{self, Preference},
     AppState,
 };
 use argon2::{
@@ -30,8 +30,12 @@ pub struct User {
     contact_channels: Value,
 }
 impl User {
-    pub(crate) fn id(&self) -> Uuid { self.id }
-    pub(crate) fn role(&self) -> &str { &self.role }
+    pub(crate) fn id(&self) -> Uuid {
+        self.id
+    }
+    pub(crate) fn role(&self) -> &str {
+        &self.role
+    }
 }
 #[derive(Serialize)]
 pub struct AuthReply {
@@ -446,8 +450,14 @@ pub async fn create_request(
     }
     let upload_token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
     let claim_token = if account.is_none() {
-        Some(format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple()))
-    } else {None};
+        Some(format!(
+            "{}{}",
+            Uuid::new_v4().simple(),
+            Uuid::new_v4().simple()
+        ))
+    } else {
+        None
+    };
     let claim_hash = claim_token.as_ref().map(|token| requests::digest(token));
     let id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO intake_requests(artist_id,client_user_id,kind,client_name,contact_email,contact_channels,description,answers,preferred_at,consent_to_contact,form_version,upload_token_hash,availability_preferences,claim_token_hash) VALUES($1,$2,$3::request_kind,$4,$5,$6,$7,$8,$9,true,3,$10,$11,$12) RETURNING id",
@@ -492,20 +502,32 @@ pub async fn artist_requests(
     Ok(Json(rows))
 }
 #[derive(Deserialize)]
-pub struct ClaimBody { claim_token: String }
+pub struct ClaimBody {
+    claim_token: String,
+}
 pub async fn claim_guest_request(
-    State(state): State<AppState>,Path(id):Path<Uuid>,headers:HeaderMap,Json(body):Json<ClaimBody>,
-)->ApiResult<StatusCode>{
-    let user=authenticated(&headers,&state.db).await?;
-    guard_role(&user,"client")?;
-    if body.claim_token.len()!=64 || !body.claim_token.bytes().all(|byte|byte.is_ascii_hexdigit()){
-        return Err(fail(StatusCode::BAD_REQUEST,"invalid_claim_token"));
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    headers: HeaderMap,
+    Json(body): Json<ClaimBody>,
+) -> ApiResult<StatusCode> {
+    let user = authenticated(&headers, &state.db).await?;
+    guard_role(&user, "client")?;
+    if body.claim_token.len() != 64
+        || !body
+            .claim_token
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err(fail(StatusCode::BAD_REQUEST, "invalid_claim_token"));
     }
     let updated=sqlx::query(
         "UPDATE intake_requests SET client_user_id=$2, claim_token_hash=NULL WHERE id=$1 AND client_user_id IS NULL AND claim_token_hash=$3 AND created_at > now()-interval '7 days'",
     ).bind(id).bind(user.id).bind(requests::digest(&body.claim_token))
         .execute(&state.db).await.map_err(db_error)?;
-    if updated.rows_affected()!=1{return Err(fail(StatusCode::NOT_FOUND,"claim_not_found"));}
+    if updated.rows_affected() != 1 {
+        return Err(fail(StatusCode::NOT_FOUND, "claim_not_found"));
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
