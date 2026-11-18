@@ -1,5 +1,6 @@
 mod accounts;
 mod requests;
+mod schedule;
 
 use axum::{
     extract::DefaultBodyLimit,
@@ -117,6 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             get(accounts::protected_attachment),
         )
         .route("/api/v1/artists/{slug}", get(accounts::public_artist))
+        .route("/api/v1/artists/{slug}/schedule", get(schedule::public_schedule))
         .route(
             "/api/v1/artists/{slug}/requests",
             post(accounts::create_request),
