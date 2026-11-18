@@ -1,6 +1,6 @@
 [package]
 name = "make-my-request-api"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
@@ -17,3 +17,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 sha2 = "0.10"
 subtle = "2.6"
 object_store = { version = "0.12", features = ["aws", "fs"] }
+argon2 = "0.5"

@@ -1,9 +1,10 @@
+mod accounts;
 mod requests;
 
 use axum::{
     extract::DefaultBodyLimit,
     http::{header, Method},
-    routing::{get, post},
+    routing::{delete, get, patch, post, put},
     Json, Router,
 };
 use object_store::{aws::AmazonS3Builder, local::LocalFileSystem, ObjectStore};
@@ -15,15 +16,15 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 #[derive(Clone)]
 struct AppState {
     db: PgPool,
-    admin_token_hash: String,
     storage: Arc<dyn ObjectStore>,
+    remote_storage: bool,
+    legacy_admin_hash: Option<String>,
 }
 
 #[derive(Serialize)]
 struct Health {
     status: &'static str,
 }
-
 async fn health() -> Json<Health> {
     Json(Health { status: "ok" })
 }
@@ -37,21 +38,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
-    let database_url = env::var("DATABASE_URL")?;
-    let db = PgPool::connect(&database_url).await?;
+    let db = PgPool::connect(&env::var("DATABASE_URL")?).await?;
     sqlx::migrate!("./migrations").run(&db).await?;
 
-    let admin_token = env::var("ADMIN_TOKEN")?;
-    if admin_token.len() < 32 {
-        return Err("ADMIN_TOKEN must contain at least 32 characters".into());
+    let remote_storage = env::var("R2_ENDPOINT").is_ok();
+    if env::var("REQUIRE_REMOTE_STORAGE").as_deref() == Ok("true") && !remote_storage {
+        return Err("R2 required but R2_ENDPOINT is not set".into());
     }
-
-    if env::var("REQUIRE_REMOTE_STORAGE").as_deref() == Ok("true")
-        && env::var("R2_ENDPOINT").is_err()
-    {
-        return Err("REQUIRE_REMOTE_STORAGE=true but R2_ENDPOINT is unset".into());
-    }
-    // R2 uses the same private object-store interface as local development.
     let storage: Arc<dyn ObjectStore> = if let Ok(endpoint) = env::var("R2_ENDPOINT") {
         Arc::new(
             AmazonS3Builder::new()
@@ -63,48 +56,62 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .build()?,
         )
     } else {
-        let upload_dir =
+        let dir =
             PathBuf::from(env::var("UPLOAD_DIR").unwrap_or_else(|_| "./private_uploads".into()));
-        tokio::fs::create_dir_all(&upload_dir).await?;
-        Arc::new(LocalFileSystem::new_with_prefix(upload_dir)?)
+        tokio::fs::create_dir_all(&dir).await?;
+        Arc::new(LocalFileSystem::new_with_prefix(dir)?)
     };
-    let state = AppState {
-        db,
-        admin_token_hash: requests::digest(&admin_token),
-        storage,
-    };
+
+    // Only the historic one-time claim flow can use this secret; it cannot access new users' data.
+    let legacy_admin_hash = env::var("ADMIN_TOKEN")
+        .ok()
+        .filter(|secret| secret.len() >= 32)
+        .map(|secret| requests::digest(&secret));
 
     let origin = env::var("WEB_ORIGIN").unwrap_or_else(|_| "http://localhost:5173".into());
     let cors = CorsLayer::new()
         .allow_origin(origin.parse::<axum::http::HeaderValue>()?)
-        .allow_methods([Method::GET, Method::POST, Method::PATCH])
+        .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::PUT, Method::DELETE])
         .allow_headers([
             header::CONTENT_TYPE,
             header::AUTHORIZATION,
             header::HeaderName::from_static("x-upload-token"),
+            header::HeaderName::from_static("x-legacy-admin-key"),
         ]);
 
     let app = Router::new()
         .route("/health", get(health))
-        .route("/api/v1/artist", get(requests::public_artist))
-        .route("/api/v1/requests", post(requests::create_request))
+        .route("/api/v1/auth/register", post(accounts::register))
+        .route("/api/v1/auth/login", post(accounts::login))
+        .route("/api/v1/auth/logout", post(accounts::logout))
+        .route("/api/v1/auth/me", get(accounts::me).put(accounts::update_me))
+        .route("/api/v1/auth/providers", get(accounts::auth_providers))
+        .route("/api/v1/artist/me", get(accounts::my_artist).put(accounts::save_artist))
+        .route("/api/v1/artist/claim-legacy", post(accounts::claim_legacy))
+        .route("/api/v1/artist/requests", get(accounts::artist_requests))
+        .route(
+            "/api/v1/artist/requests/{id}",
+            get(accounts::artist_request)
+                .patch(accounts::change_status)
+                .delete(accounts::delete_request),
+        )
+        .route("/api/v1/client/requests", get(accounts::client_requests))
+        .route("/api/v1/attachments/{id}", get(accounts::protected_attachment))
+        .route("/api/v1/artists/{slug}", get(accounts::public_artist))
+        .route("/api/v1/artists/{slug}/requests", post(accounts::create_request))
         .route(
             "/api/v1/requests/{id}/attachments",
             post(requests::upload_attachment),
         )
-        .route("/api/v1/admin/requests", get(requests::list_requests))
-        .route(
-            "/api/v1/admin/requests/{id}",
-            get(requests::get_request).patch(requests::change_status),
-        )
-        .route(
-            "/api/v1/admin/attachments/{id}",
-            get(requests::download_attachment),
-        )
         .layer(DefaultBodyLimit::max(6 * 1024 * 1024))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
-        .with_state(state);
+        .with_state(AppState {
+            db,
+            storage,
+            remote_storage,
+            legacy_admin_hash,
+        });
 
     let host = env::var("API_HOST").unwrap_or_else(|_| "0.0.0.0".into());
     let port: u16 = env::var("API_PORT")
