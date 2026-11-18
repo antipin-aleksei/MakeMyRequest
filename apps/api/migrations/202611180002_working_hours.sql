@@ -10,3 +10,4 @@ CREATE TABLE artist_working_hours (
 CREATE INDEX artist_working_hours_by_artist ON artist_working_hours (artist_id, weekday);
 ALTER TABLE intake_requests ADD COLUMN availability_preferences JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(availability_preferences) = 'array');
 ALTER TABLE intake_requests ADD COLUMN claim_token_hash TEXT;
+ALTER TABLE intake_requests ADD COLUMN availability_timezone TEXT;
