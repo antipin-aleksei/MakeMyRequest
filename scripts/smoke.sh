@@ -43,7 +43,16 @@ python3 - "$tmp/client-list.json" <<'PY'
 import json,sys
 d=json.load(open(sys.argv[1]))
 assert len(d)==1 and d[0]['artist_name']=='Smoke Artist'
+print(d[0]['id'])
 PY
+client_request_id="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))[0]["id"])' "$tmp/client-list.json")"
+curl -fsS "$api/client/requests/$client_request_id" -H "Authorization: Bearer $client_token" > "$tmp/client-detail.json"
+python3 - "$tmp/client-detail.json" <<'PY'
+import json,sys
+d=json.load(open(sys.argv[1]))
+assert d['client_name']=='Smoke Client',d
+PY
+test "$(curl -s -o /dev/null -w '%{http_code}' "$api/client/requests/$client_request_id" -H "Authorization: Bearer $artist_token")" = "403"
 curl -fsS -o /dev/null -X PATCH "$api/artist/requests/$id" -H "Authorization: Bearer $artist_token" -H 'Content-Type: application/json' -d '{"status":"in_review"}'
 curl -fsS -o /dev/null -X DELETE "$api/artist/requests/$id" -H "Authorization: Bearer $artist_token"
 test "$(curl -s -o /dev/null -w '%{http_code}' "$api/artist/requests/$id" -H "Authorization: Bearer $artist_token")" = "404"
