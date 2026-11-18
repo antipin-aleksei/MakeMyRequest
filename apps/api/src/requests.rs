@@ -96,7 +96,10 @@ pub async fn upload_attachment(
     let stored = if state.remote_storage {
         state
             .storage
-            .put(&ObjectPath::from(id.to_string()), PutPayload::from(bytes.to_vec()))
+            .put(
+                &ObjectPath::from(id.to_string()),
+                PutPayload::from(bytes.to_vec()),
+            )
             .await
             .map_err(|_| fail(StatusCode::SERVICE_UNAVAILABLE, "storage_unavailable"))?;
         None
@@ -116,7 +119,10 @@ pub async fn upload_attachment(
     .await;
     if let Err(error) = insert {
         if state.remote_storage {
-            let _ = state.storage.delete(&ObjectPath::from(id.to_string())).await;
+            let _ = state
+                .storage
+                .delete(&ObjectPath::from(id.to_string()))
+                .await;
         }
         if error.as_database_error().and_then(|e| e.constraint())
             == Some("request_attachments_max_three")
