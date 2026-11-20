@@ -77,15 +77,16 @@ fn channels_ok(channels: &Value) -> bool {
     let Some(values) = channels.as_object() else {
         return false;
     };
-    values.len() <= 5
+    values.len() <= 7
         && values.iter().all(|(name, value)| {
-            ["email", "telegram", "whatsapp", "viber", "instagram"].contains(&name.as_str())
+            ["email", "telegram", "whatsapp", "viber", "instagram", "tiktok", "website"].contains(&name.as_str())
                 && value.as_str().is_some_and(|text| {
                     let text = text.trim();
                     !text.is_empty()
                         && text.len() <= 140
                         && !text.chars().any(|c| c.is_control() || c == '<' || c == '>')
                         && (name != "email" || email_ok(text))
+                        && (!["website", "tiktok"].contains(&name.as_str()) || (text.starts_with("https://") && !text.contains(char::is_whitespace)))
                 })
         })
 }
