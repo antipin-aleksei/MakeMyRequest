@@ -9,7 +9,7 @@ use argon2::{
 };
 use axum::{
     body::Body,
-    extract::{Path, State},
+    extract::{Multipart, Path, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
     response::Response,
     Json,
@@ -275,6 +275,7 @@ pub struct Artist {
     city: String,
     contact_channels: Value,
     accepting_requests: bool,
+    avatar_present: bool,
 }
 #[derive(Deserialize)]
 pub struct ArtistUpdate {
@@ -312,7 +313,7 @@ pub async fn save_artist(
         return Err(fail(StatusCode::BAD_REQUEST, "invalid_artist"));
     }
     let result = sqlx::query_as::<_, Artist>(
-        "INSERT INTO artists(user_id,slug,display_name,bio,city,contact_channels,published,active,accepting_requests) VALUES($1,$2,$3,$4,$5,$6,true,true,$7) ON CONFLICT(user_id) DO UPDATE SET slug=excluded.slug,display_name=excluded.display_name,bio=excluded.bio,city=excluded.city,contact_channels=excluded.contact_channels,accepting_requests=excluded.accepting_requests,published=true RETURNING id,slug,display_name,bio,city,contact_channels,accepting_requests",
+        "INSERT INTO artists(user_id,slug,display_name,bio,city,contact_channels,published,active,accepting_requests) VALUES($1,$2,$3,$4,$5,$6,true,true,$7) ON CONFLICT(user_id) DO UPDATE SET slug=excluded.slug,display_name=excluded.display_name,bio=excluded.bio,city=excluded.city,contact_channels=excluded.contact_channels,accepting_requests=excluded.accepting_requests,published=true RETURNING id,slug,display_name,bio,city,contact_channels,accepting_requests,(avatar_bytes IS NOT NULL) AS avatar_present",
     )
     .bind(user.id).bind(&body.slug).bind(body.display_name.trim())
     .bind(body.bio.trim()).bind(body.city.trim()).bind(body.contact_channels)
@@ -337,7 +338,7 @@ pub async fn my_artist(
     let user = authenticated(&headers, &state.db).await?;
     guard_role(&user, "artist")?;
     let artist = sqlx::query_as::<_, Artist>(
-        "SELECT id,slug,display_name,bio,city,contact_channels,accepting_requests FROM artists WHERE user_id=$1",
+        "SELECT id,slug,display_name,bio,city,contact_channels,accepting_requests,(avatar_bytes IS NOT NULL) AS avatar_present FROM artists WHERE user_id=$1",
     )
     .bind(user.id).fetch_optional(&state.db).await.map_err(db_error)?;
     Ok(Json(artist))
@@ -347,10 +348,58 @@ pub async fn public_artist(
     Path(slug): Path<String>,
 ) -> ApiResult<Json<Artist>> {
     let artist = sqlx::query_as::<_, Artist>(
-        "SELECT id,slug,display_name,bio,city,contact_channels,accepting_requests FROM artists WHERE slug=$1 AND published=true AND active=true",
+        "SELECT id,slug,display_name,bio,city,contact_channels,accepting_requests,(avatar_bytes IS NOT NULL) AS avatar_present FROM artists WHERE slug=$1 AND published=true AND active=true",
     ).bind(slug).fetch_optional(&state.db).await.map_err(db_error)?
     .ok_or_else(|| fail(StatusCode::NOT_FOUND, "artist_not_found"))?;
     Ok(Json(artist))
+}
+
+
+pub async fn upload_avatar(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    mut multipart: Multipart,
+) -> ApiResult<Json<Artist>> {
+    let user = authenticated(&headers, &state.db).await?;
+    guard_role(&user, "artist")?;
+    let field = multipart.next_field().await
+        .map_err(|_| fail(StatusCode::BAD_REQUEST, "invalid_file"))?
+        .ok_or_else(|| fail(StatusCode::BAD_REQUEST, "missing_file"))?;
+    if field.name() != Some("file") {
+        return Err(fail(StatusCode::BAD_REQUEST, "missing_file"));
+    }
+    let bytes = field.bytes().await
+        .map_err(|_| fail(StatusCode::BAD_REQUEST, "invalid_file"))?;
+    if bytes.is_empty() || bytes.len() > 2 * 1024 * 1024 {
+        return Err(fail(StatusCode::BAD_REQUEST, "file_size_invalid"));
+    }
+    let mime = if bytes.starts_with(&[0xff,0xd8,0xff]) { "image/jpeg" }
+        else if bytes.starts_with(b"\x89PNG\r\n\x1a\n") { "image/png" }
+        else if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" { "image/webp" }
+        else { return Err(fail(StatusCode::BAD_REQUEST, "unsupported_file")); };
+    let artist = sqlx::query_as::<_,Artist>(
+        "UPDATE artists SET avatar_bytes=$2,avatar_media_type=$3 WHERE user_id=$1 RETURNING id,slug,display_name,bio,city,contact_channels,accepting_requests,(avatar_bytes IS NOT NULL) AS avatar_present"
+    ).bind(user.id).bind(bytes.as_ref()).bind(mime)
+    .fetch_optional(&state.db).await.map_err(db_error)?
+    .ok_or_else(|| fail(StatusCode::NOT_FOUND, "complete_artist_profile_first"))?;
+    Ok(Json(artist))
+}
+pub async fn public_avatar(
+    State(state): State<AppState>,
+    Path(slug): Path<String>,
+) -> ApiResult<Response> {
+    let (bytes,mime) = sqlx::query_as::<_,(Option<Vec<u8>>,Option<String>)>(
+        "SELECT avatar_bytes,avatar_media_type FROM artists WHERE slug=$1 AND published=true AND active=true"
+    ).bind(slug).fetch_optional(&state.db).await.map_err(db_error)?
+    .ok_or_else(|| fail(StatusCode::NOT_FOUND, "not_found"))?;
+    let bytes = bytes.ok_or_else(|| fail(StatusCode::NOT_FOUND, "not_found"))?;
+    let mime = mime.ok_or_else(|| fail(StatusCode::NOT_FOUND, "not_found"))?;
+    let mut response = Response::new(Body::from(bytes));
+    response.headers_mut().insert(header::CONTENT_TYPE,
+        HeaderValue::from_str(&mime).map_err(|_|fail(StatusCode::INTERNAL_SERVER_ERROR,"invalid_file"))?);
+    response.headers_mut().insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    response.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=60"));
+    Ok(response)
 }
 
 #[derive(Deserialize)]
