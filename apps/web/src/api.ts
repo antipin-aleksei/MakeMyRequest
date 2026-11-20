@@ -4,10 +4,10 @@ export type RequestStatus = 'new' | 'in_review' | 'needs_info' | 'accepted' | 'd
 export interface WorkWindow {weekday:number;start:string;end:string}
 export interface WorkSchedule {timezone:string;slots:WorkWindow[]}
 export interface AvailabilityPreference {date_from:string;date_to:string;time_from:string;time_to:string}
-export type Contacts = Partial<Record<'email'|'telegram'|'whatsapp'|'viber'|'instagram',string>>;
+export type Contacts = Partial<Record<'email'|'telegram'|'whatsapp'|'viber'|'instagram'|'tiktok'|'website',string>>;
 export interface User { id:string; email:string; display_name:string; role:Role; preferred_language:'en'|'ru'|'sr'; contact_channels:Contacts }
 export interface AuthReply {token:string;user:User}
-export interface Artist {id:string;slug:string;display_name:string;bio:string;city:string;contact_channels:Contacts;accepting_requests:boolean}
+export interface Artist {id:string;slug:string;display_name:string;bio:string;city:string;contact_channels:Contacts;accepting_requests:boolean;avatar_present:boolean}
 export interface Inquiry {
   kind:RequestKind;client_name:string;contact_email:string;contact_channels:Contacts;
   description:string; answers:Record<string,string|number|null>;preferred_at:string|null;
@@ -57,8 +57,13 @@ export async function logout(){try{await fetch(url('/auth/logout'),{method:'POST
 export function updateMe(display_name:string,preferred_language:string,contact_channels:Contacts){
   return parse<User>(fetch(url('/auth/me'),{method:'PUT',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({display_name,preferred_language,contact_channels})}));
 }
-export function saveArtist(data:Omit<Artist,'id'>){
+export function saveArtist(data:Omit<Artist,'id'|'avatar_present'>){
   return parse<Artist>(fetch(url('/artist/me'),{method:'PUT',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify(data)}));
+}
+export const avatarUrl=(slug:string)=>url('/artists/'+encodeURIComponent(slug)+'/avatar');
+export function uploadArtistAvatar(file:File){
+  const body=new FormData();body.append('file',file);
+  return parse<Artist>(fetch(url('/artist/avatar'),{method:'POST',headers:headers(),body}));
 }
 export function submitRequest(slug:string,data:Inquiry){
   return parse<CreatedRequest>(fetch(url('/artists/'+encodeURIComponent(slug)+'/requests'),{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify(data)}));
