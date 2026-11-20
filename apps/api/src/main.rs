@@ -104,6 +104,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/api/v1/artist/schedule",
             get(schedule::my_schedule).put(schedule::save_schedule),
         )
+        .route("/api/v1/artist/avatar", post(accounts::upload_avatar))
+        .route("/api/v1/artists/{slug}/avatar", get(accounts::public_avatar))
         .route("/api/v1/artist/claim-legacy", post(accounts::claim_legacy))
         .route("/api/v1/artist/requests", get(accounts::artist_requests))
         .route(
