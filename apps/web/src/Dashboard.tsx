@@ -10,7 +10,7 @@ import ContactsFields from './Contacts';
 import { useI18n } from './i18n';
 import {
   getMyArtist, getArtistRequest, getClientRequest, importLegacy, listArtistRequests, listClientRequests,
-  loadReference, removeRequest, saveArtist, updateMe, updateStatus,
+  avatarUrl, loadReference, removeRequest, saveArtist, updateMe, updateStatus, uploadArtistAvatar,
   type Artist, type Contacts, type Detail, type RequestStatus, type Summary, type User
 } from './api';
 
@@ -65,15 +65,19 @@ function ArtistProfileEditor({user,current,onSave}:{user:User;current:Artist|nul
   const [contacts,setContacts]=useState<Contacts>(current?.contact_channels??{});
   const [accepting,setAccepting]=useState(current?.accepting_requests??true);
   const [saving,setSaving]=useState(false);
+  const [uploading,setUploading]=useState(false);
+  const [avatar,setAvatar]=useState<File|null>(null);
+  const [avatarRevision,setAvatarRevision]=useState(0);
   const [error,setError]=useState('');
   async function save(event:FormEvent){
     event.preventDefault();if(saving)return;setSaving(true);setError('');
-    try{onSave(await saveArtist({slug,display_name:name,bio,city,contact_channels:contacts,accepting_requests:accepting}));}
+    try{let saved=await saveArtist({slug,display_name:name,bio,city,contact_channels:contacts,accepting_requests:accepting});if(avatar){setUploading(true);saved=await uploadArtistAvatar(avatar);setAvatar(null);setAvatarRevision(x=>x+1);}onSave(saved);}
     catch(cause){setError(translateError(cause,t));}
-    finally{setSaving(false);}
+    finally{setSaving(false);setUploading(false);}
   }
   return <Card><CardHeader><CardTitle>{current?t('editProfile'):t('artistSetup')}</CardTitle><CardDescription>{t('artistSetupHint')}</CardDescription></CardHeader>
     <CardContent><form onSubmit={save} className="space-y-5">
+      <div className="flex flex-wrap items-center gap-4">{current?.avatar_present&&<img src={avatarUrl(current.slug)+"?v="+avatarRevision} alt={current.display_name} className="size-20 rounded-full object-cover"/>}<div className="min-w-0 flex-1 space-y-2"><Label htmlFor="artist-avatar">Фото мастера (JPEG, PNG, WebP, до 2 МБ)</Label><Input id="artist-avatar" type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>{const file=e.target.files?.[0]??null;if(file&&(file.size>2*1024*1024||file.size===0||!['image/jpeg','image/png','image/webp'].includes(file.type))){setError('Выберите JPEG, PNG или WebP до 2 МБ');setAvatar(null);return;}setAvatar(file);setError('');}}/></div></div>
       <div className="space-y-2"><Label htmlFor="artist-name">{t('artistName')}</Label><Input id="artist-name" value={name} onChange={e=>setName(e.target.value)} minLength={2} maxLength={120} required/></div>
       <div className="space-y-2"><Label htmlFor="artist-slug">{t('slug')}</Label><Input id="artist-slug" value={slug} onChange={e=>setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,''))} minLength={3} maxLength={48} pattern="[a-z0-9]+(-[a-z0-9]+)*" required/><p className="text-xs text-muted-foreground">{t('slugHint')}</p></div>
       <div className="space-y-2"><Label htmlFor="artist-bio">{t('bio')}</Label><Textarea id="artist-bio" value={bio} onChange={e=>setBio(e.target.value)} rows={4} maxLength={3000}/></div>
@@ -81,7 +85,7 @@ function ArtistProfileEditor({user,current,onSave}:{user:User;current:Artist|nul
       <div className="space-y-2"><h3 className="text-sm font-medium">{t('contactMethods')}</h3><ContactsFields value={contacts} onChange={setContacts}/></div>
       <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={accepting} onChange={e=>setAccepting(e.target.checked)}/>{t('accepting')}</label>
       {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={saving}>{saving?t('loading'):t('save')}</Button>
+      <Button type="submit" disabled={saving}>{saving||uploading?t('loading'):t('save')}</Button>
     </form></CardContent>
   </Card>;
 }
@@ -117,20 +121,20 @@ export function ArtistDashboard({user,navigate}:{user:User;navigate:(path:string
     <h1 className="text-2xl font-semibold">{t('dashboard')}</h1>
     {error&&<p role="alert" className="rounded-lg border border-destructive p-3 text-sm text-destructive">{error}</p>}
     {notice&&<p role="status" className="rounded-lg bg-secondary p-3 text-sm">{notice}</p>}
-    <div className="grid gap-5 md:grid-cols-[232px_minmax(0,1fr)]">
-      <aside className="self-start space-y-3 rounded-xl border border-border bg-card p-3 md:sticky md:top-4">
-        <div className="hidden border-b border-border px-3 pb-4 pt-2 md:block">
+    <div className="grid min-w-0 gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <aside className="self-start space-y-3 rounded-xl border border-border bg-card p-3 lg:sticky lg:top-4">
+        <div className="hidden border-b border-border px-3 pb-4 pt-2 lg:block">
           <p className="text-sm font-semibold">{profile?.display_name??user.display_name}</p>
           <p className="break-all text-xs text-muted-foreground">{profile?.city??user.email}</p>
         </div>
-        <nav aria-label={t('artistNavigation')} className="grid grid-cols-4 gap-1 md:grid-cols-1">
+        <nav aria-label={t('artistNavigation')} className="grid grid-cols-2 gap-1 sm:grid-cols-4 lg:grid-cols-1">
           {([
             ['requests',ClipboardList,t('requestsInbox')],
             ['profile',UserRound,t('artistInfoTab')],
             ['schedule',CalendarClock,t('scheduleTitle')],
             ['links',Link2,t('artistLinksTab')],
           ] as const).map(([id,Icon,label])=><button key={id} type="button" aria-current={tab===id?'page':undefined}
-            className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 py-2 text-center text-xs font-medium transition-colors md:justify-start md:px-3 md:text-sm ${tab===id?'bg-primary text-primary-foreground':'text-muted-foreground hover:bg-muted'}`}
+            className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 py-2 text-center text-xs font-medium transition-colors lg:justify-start lg:px-3 lg:text-sm ${tab===id?'bg-primary text-primary-foreground':'text-muted-foreground hover:bg-muted'}`}
             onClick={()=>{setTab(id);setSelected(null);}}><Icon size={17}/><span>{label}</span></button>)}
         </nav>
       </aside>
