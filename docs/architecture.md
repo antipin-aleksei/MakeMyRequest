@@ -1,32 +1,48 @@
-# Architecture — v0
+# Architecture — MakeMyRequest MVP v2
 
-## Product
-A personal intake and booking website for a specific tattoo artist, not a studio directory. Two entry points:
-1. **Consultation**: tattoo idea, style, placement, approximate size, budget, description, references (upload later), contact details. Artist reviews and asks clarifying questions in a future iteration.
-2. **Session request**: client provides desired date/time and context. This is NOT a confirmed booking; confirmation/availability comes later.
+## Product boundaries
+Independent tattoo artists create accounts and publish personalized booking links; clients may register or send **guest enquiries** without an account. Artist/client logins and dashboards are distinct; there is no studio account, AI, payment or live calendar.
 
-## Diagram
-Browser / WebView -> Cloudflare Pages (Vite React + Mantine) -> HTTPS JSON -> Rust Axum API -> PostgreSQL.
-For local development, Vite :5173 -> API :8080 -> Docker PostgreSQL :5432. Later private object storage holds reference images; DB only their metadata.
+## Infrastructure (staging)
+React / TypeScript / Vite / shadcn + Tailwind on Render Static Site (free HTTPS) → Rust Axum API on Render Free → Neon PostgreSQL staging. Image references up to 3×5 MiB: PostgreSQL BYTEA by default (durable staging), private Cloudflare R2 when configured. Photos are delivered through authenticated Rust endpoints, never a public bucket. Staging object/DB quotas must be monitored.
 
-## Modules
-- `requests`: validated intake, persistence and request lifecycle.
-- `bookings` (future): artist availability, candidate slots, transactional conflict checks.
-- `forms` (future): versioned dynamic intake schemas and server-side validation.
-- `auth` (future): artist-only admin access. Public clients submit requests.
-- `ai` (future): only after concrete cases are specified.
+## UI routes
+Render static site has no reliable deep-route fallback through the available management API; Vite uses **hash routes**:
+- /#/ — welcome with separate artist and client sign-in/registration
+- /#/auth/register/artist and /#/auth/register/client
+- /#/artist/dashboard — artist onboarding, inbox, detail/status/delete, legacy import
+- /#/client/dashboard — client requests, details/photos and contact profile
+- /#/a/:slug — public artist profile
+- /#/a/:slug/apply — consultation or session-request questionnaire
 
-## Data design
-`artists` -> `intake_requests` (`request_kind`, contact, description, structured JSONB `answers`, `status`, optional preferred date). One seeded artist is configured in the DB; do not infer artist identity from unsanitized user input. Attachments/messages/bookings are later migrations.
+Copy links from artist dashboard; directly reopening hash links must work. The bare /admin path is retired.
 
-## API v1
-- `GET /health` simple process liveness.
-- `GET /api/v1/artist` public artist profile.
-- `POST /api/v1/requests` submit intake; 201 + request id, 400 for validation, 503 if DB unavailable.
-- Admin request management and actual availability are out of scope for scaffold.
+## Rust modules
+- accounts.rs: password auth with Argon2id, opaque hashed bearer sessions, role-aware read/update, registration, artist profiles, request queries, deletion and one-time legacy import.
+- requests.rs: validation and protected upload using per-request SHA256 upload token. SQLx migrations are applied at API startup.
+- main.rs: router, storage, CORS, settings.
 
-## Security & operations
-Public requests need rate limiting, anti-spam, privacy notice/consent and retention before public launch. No public admin endpoints. Privacy-by-default: no client photos in database/logs, no LLM use, no secrets checked in. DB migrations applied at startup in MVP (later separate deploy job). Only promote to live booking after conflict-safe design and transactional tests.
+## Database
+app_users (role, email/password hash, display_name, locale, contact channels) ↔ user_sessions.
+artists (user_id, unique slug, bio, city, published/accepting_requests, contacts).
+intake_requests (artist_id mandatory, client_user_id nullable, contact email optional as empty string, channels JSONB, answers JSONB, form_version, status, preferred_at, upload_token_hash).
+request_attachments (request_id, media_type, size, contents BYTEA when R2 absent).
+Existing legacy seeded artist/requests are preserved. New onboarding does not automatically claim historic data. One-time import requires the original server admin secret plus authenticated artist account.
 
-## Release path
-Local docker compose -> CI (Rust + Node + Postgres migration validation) -> Pages + backend container + managed Postgres. Free hosting sleeps/limits; uptime/backup/security must be assessed before real clients.
+## HTTP contracts
+- POST /api/v1/auth/register /login /logout; GET/PUT /api/v1/auth/me.
+- GET /api/v1/auth/providers (reports providers as unavailable until configured).
+- GET/PUT /api/v1/artist/me; GET /api/v1/artists/:slug.
+- POST /api/v1/artists/:slug/requests (authenticated clients or guests).
+- POST /api/v1/requests/:id/attachments (upload bearer token).
+- GET /api/v1/artist/requests; GET/PATCH/DELETE /api/v1/artist/requests/:id.
+- GET /api/v1/client/requests; GET /api/v1/client/requests/:id.
+- GET /api/v1/attachments/:id (artist owner or client submitter).
+- POST /api/v1/artist/claim-legacy (artist bearer AND original x-legacy-admin-key).
+
+## Security constraints and production gaps
+Passwords are Argon2id and per-session tokens stored hashed; session secret in browser sessionStorage and sent as bearer (staging scope, XSS protection important). Exact-origin CORS. All per-user data SQL filtered by user_id; tests include cross-artist reads and private image access. JSON inputs capped, images magic-type checked and bounded in size.
+Before public sign-up with genuine personal data: verified email, account recovery, login rate limiting/WAF and CSRF review, abuse protection, GDPR notices and erasure workflow, backups/lifecycle, independent security review, and real Google/Apple/Facebook OAuth apps/callbacks. No social sign-in is claimed functional yet.
+
+## Quality checks
+GitHub Actions has web typecheck/build, cargo fmt/clippy/test and disposable PostgreSQL HTTP smoke covering account lifecycle, artist page, messenger-only guest submission, client inbox, private uploaded image, cross-artist authorization, status and deletion. Manual mobile/WebView checks remain.

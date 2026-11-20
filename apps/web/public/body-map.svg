@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 600" role="img" aria-labelledby="title desc">
+<title id="title">Body area guide — front and back</title>
+<desc id="desc">Neutral human silhouettes, front and back, with named body zones in English, Russian and Serbian.</desc>
+<rect width="760" height="600" fill="#fafaf9" rx="18"/>
+<g font-family="system-ui,Arial,sans-serif" fill="#1c1917">
+ <text x="200" y="32" text-anchor="middle" font-size="18" font-weight="bold">FRONT / СПЕРЕДИ / SPREDA</text>
+ <text x="560" y="32" text-anchor="middle" font-size="18" font-weight="bold">BACK / СЗАДИ / POZADI</text>
+</g>
+<defs><g id="person" fill="#e7d8cc" stroke="#57534e" stroke-width="2.2" stroke-linejoin="round">
+<ellipse cx="0" cy="75" rx="27" ry="34"/>
+<rect x="-11" y="105" width="22" height="19" rx="5"/>
+<path d="M-37 121 Q-50 127 -56 155 L-45 262 Q-42 273 -32 270 L-26 222 L-20 265 L-18 320 L-34 478 L-32 540 Q-30 553 -15 553 L-9 540 L0 378 L9 540 L15 553 Q30 553 32 540 L34 478 L18 320 L20 265 L26 222 L32 270 Q42 273 45 262 L56 155 Q50 127 37 121 L20 112 Q0 124 -20 112 Z"/>
+</g></defs>
+<use href="#person" x="200" y="0"/>
+<use href="#person" x="560" y="0"/>
+<g stroke="#0f766e" stroke-width="2" fill="none">
+<!-- front pointers -->
+<path d="M192 67 L140 60 L92 60"/><path d="M202 144 L262 134 L319 134"/><path d="M225 173 L273 173 L318 173"/>
+<path d="M160 206 L126 206 L71 206"/><path d="M172 252 L132 266 L72 266"/><path d="M210 340 L266 350 L315 350"/>
+<path d="M169 450 L123 465 L75 465"/><path d="M190 536 L143 557 L100 557"/>
+<!-- back pointers -->
+<path d="M560 73 L502 58 L437 58"/><path d="M560 158 L620 151 L692 151"/>
+<path d="M520 207 L469 206 L410 206"/><path d="M559 276 L621 280 L690 280"/>
+<path d="M585 350 L637 364 L699 364"/><path d="M541 458 L484 481 L408 481"/>
+</g>
+<g font-family="system-ui,Arial,sans-serif" fill="#134e4a" font-size="12.5">
+<text x="90" y="55" text-anchor="start">Neck / Шея / Vrat</text>
+<text x="319" y="129" text-anchor="end">Shoulder / Плечо / Rame</text>
+<text x="318" y="168" text-anchor="end">Chest / Грудь / Grudi</text>
+<text x="70" y="201">Arm / Рука / Ruka</text>
+<text x="71" y="261">Forearm / Предплечье</text>
+<text x="315" y="345" text-anchor="end">Thigh / Бедро / Butina</text>
+<text x="75" y="460">Calf / Голень / List</text>
+<text x="100" y="552">Ankle / Лодыжка</text>
+<text x="435" y="53">Neck / Šija</text>
+<text x="693" y="146" text-anchor="end">Upper back / Верх спины</text>
+<text x="410" y="201">Arm / Nadlaktica</text>
+<text x="691" y="275" text-anchor="end">Lower back / Поясница</text>
+<text x="699" y="359" text-anchor="end">Thigh / Butina</text>
+<text x="407" y="476">Calf / List</text>
+</g>
+<text x="380" y="585" font-family="system-ui" font-size="12" text-anchor="middle" fill="#78716c">Simplified anatomical guide • Условная схема • Pojednostavljena ilustracija</text>
+</svg>

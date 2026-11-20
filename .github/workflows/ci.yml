@@ -1,6 +1,7 @@
 name: CI
 on:
   push:
+    branches: [main]
   pull_request:
 jobs:
   web:
@@ -26,3 +27,43 @@ jobs:
       - run: cargo fmt --manifest-path apps/api/Cargo.toml -- --check
       - run: cargo clippy --manifest-path apps/api/Cargo.toml --all-targets -- -D warnings
       - run: cargo test --manifest-path apps/api/Cargo.toml
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tattoo
+          POSTGRES_PASSWORD: tattoo
+          POSTGRES_DB: tattoo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tattoo -d tattoo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://tattoo:tattoo@127.0.0.1:5432/tattoo
+      ADMIN_TOKEN: ci-synthetic-test-secret-0123456789abcdef0123456789abcdef
+      API_HOST: 127.0.0.1
+      API_PORT: "8080"
+      UPLOAD_DIR: /tmp/make-my-request-private-test-files
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Start API and test migration/health/intake/upload/admin
+        run: |
+          set -euo pipefail
+          cargo run --manifest-path apps/api/Cargo.toml > /tmp/make-my-request-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in $(seq 1 180); do
+            if curl --silent --fail http://127.0.0.1:8080/health > /dev/null; then ready=1; break; fi
+            if ! kill -0 "$api_pid" 2>/dev/null; then cat /tmp/make-my-request-api.log; exit 1; fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then cat /tmp/make-my-request-api.log; exit 1; fi
+          API_URL=http://127.0.0.1:8080 bash scripts/smoke.sh
