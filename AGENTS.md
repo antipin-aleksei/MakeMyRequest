@@ -1,37 +1,38 @@
 # MakeMyRequest — AI agent contract
 
 ## Mission
-Build a mobile-first request intake and appointment booking service for **one individual tattoo artist**. A client may submit a detailed consultation request or ask for a session. The artist must receive structured, actionable information. Do not introduce studio/multi-tenant features until requested.
+Build a mobile-first request intake and session enquiry website for **one tattoo artist**. Clients submit a consultation or session request, not a confirmed booking. Do not build a studio directory or multi-tenancy.
 
-## Stack and boundaries
-- Web: React, TypeScript (strict), Vite, Mantine. Rust API: Axum, serde, tokio, SQLx. Database: PostgreSQL.
-- Keep a **modular monolith**. No microservices, queues, Kubernetes, Redis, auth SaaS or LLM dependencies in MVP.
-- `web` owns presentation and client-side validation; `api` owns authoritative validation and business rules; database owns integrity constraints.
-- HTTP handlers must not contain SQL. Persistence must remain in repository modules. Never expose DB credentials or trust a client-provided artist identity.
-- Keep API endpoints under `/api/v1`. Preserve backward compatibility or explicitly version breaking changes.
-- Use typed request/response DTOs; never expose internal database models directly.
-- Only add abstractions when at least two concrete use cases justify them. Do not prebuild AI interfaces. Future AI must use the same application services and cannot bypass booking invariants.
-- Never put secrets, personal data, client images, or production DB URLs in commits/logs. Treat tattoo photos as private data.
-- UTC timestamps in persistence, explicit artist IANA timezone in scheduling. Enforce booking overlaps in PostgreSQL transactions/constraints.
-- Never invent available time slots; booking flow is a **request**, not confirmed scheduling, until availability is implemented.
+## Required reading & skills
+1. Read `docs/architecture.md`, `docs/adr/0001-modular-monolith.md`, `docs/adr/0002-ui-kit.md`.
+2. Read `vibe/MVP_PLAN.md` for scope.
+3. For frontend read `.agents/skills/frontend/SKILL.md`; backend: `.agents/skills/backend/SKILL.md`; database: `.agents/skills/database/SKILL.md`; reviews: `.agents/skills/review/SKILL.md`.
 
-## Before coding
-1. Read `docs/architecture.md` and `docs/adr/0001-modular-monolith.md`.
-2. Read feature-specific skills in `.agents/skills/`.
-3. Write acceptance criteria and the smallest behavior-level test first for nontrivial changes.
-4. Keep diffs small and focused; explain any migration and compatibility impact.
+## Architecture rules
+- React 19 + TypeScript strict + Vite + **shadcn/ui and Tailwind v4**. Never introduce Mantine.
+- Backend Rust + Axum + SQLx. PostgreSQL with JSONB. One modular monolith.
+- UI owns presentation/UX checks, API owns authoritative validation/business rules, database owns constraints.
+- HTTP handlers must not own SQL; new functionality isolates SQL in repositories.
+- Version API routes under `/api/v1`, use typed DTOs and preserve compatibility.
+- Don't add microservices, queues, LLM infrastructure, or speculative abstractions.
+- Treat customer info and tattoo photos as private. No secrets/PII in Git, logs, or public storage.
+- Store times in UTC, handle artist timezone explicitly. Block double booking with DB transactions/constraints when real bookings are implemented.
+- Requested session date is NOT live availability or a booking confirmation.
 
-## Required checks
-- `npm --prefix apps/web run typecheck`, `npm --prefix apps/web run build`.
+## Development workflow
+1. Identify milestone, write scoped acceptance criteria, tests for nontrivial behavior.
+2. Use official shadcn CLI for new components: `cd apps/web && npx shadcn@latest add <component>`. Review generated code.
+3. Prefer reusable shadcn primitives, semantic forms, accessible labels and errors, mobile WebView layout.
+4. Keep changes small, update ADR when architecture changes.
+5. Don't claim success for checks that have not been executed.
+
+## Quality gates
+- `npm --prefix apps/web run typecheck`
+- `npm --prefix apps/web run build`
 - `cargo fmt --manifest-path apps/api/Cargo.toml -- --check`
 - `cargo clippy --manifest-path apps/api/Cargo.toml --all-targets -- -D warnings`
 - `cargo test --manifest-path apps/api/Cargo.toml`
-- Validate migrations against real PostgreSQL before release. CI should fail on warnings.
-- Never claim a check passed unless it was executed.
+- Exercise SQLx migrations on real PostgreSQL before deploying.
 
 ## Definition of done
-- Accessible mobile UI including loading/error/success states.
-- Server-side validation and error contracts.
-- Tests for changed business rules.
-- Documentation updated (ADR for changes in architectural direction).
-- No placeholder functionality presented as real bookings.
+Working feature behavior with loading/error/success states, accessible mobile UI, server validation and relevant tests, green CI and updated documentation. Do not present unverified slot availability or fake confirmations.

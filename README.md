@@ -3,7 +3,7 @@
 Mobile-first request intake and session enquiry for **one tattoo artist**.
 
 ## Stack
-- React + TypeScript + Vite + Mantine
+- React + TypeScript + Vite + shadcn/ui + Tailwind CSS v4
 - Rust + Axum + SQLx
 - PostgreSQL with JSONB
 - Modular monolith, no AI functionality yet
@@ -25,6 +25,7 @@ The "session" path collects a **preferred date**, not an available time slot or 
 ## Architecture and agent instructions
 - `AGENTS.md` — cross-stack constraints and quality gates.
 - `.agents/skills/` — focused frontend/backend/database/review workflows.
+- `vibe/01_FOUNDATION.md` — detailed first milestone and remaining verification tasks.
 - `docs/architecture.md`, `docs/adr/` — design and decisions.
 
 ## Deployment
