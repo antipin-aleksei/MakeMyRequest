@@ -87,13 +87,13 @@ function Shell(){
   else if(auth)content=user?<Home user={user}/>:<AuthPage key={route} kind={bits[1]==='register'?'register':'login'} role={role} onSuccess={signedIn} navigate={navigate} prefill={role==='client'&&pendingFollowUp?pendingFollowUp:undefined}/>;
   else content=<Home user={user}/>;
   return <div className="min-h-svh bg-background text-foreground">
-    <header className="border-b border-border bg-card"><div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+    <header className="border-b border-border bg-card"><div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-5">
       <a href="/#/" className="flex items-center gap-2 font-semibold"><span className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground"><HeartHandshake size={18}/></span><span className="hidden sm:inline">{t('brand')}</span><span className="sm:hidden">MMR</span></a>
-      <div className="flex items-center gap-2"><LanguageSwitch/>{user&&<Button size="sm" variant="outline" onClick={()=>navigate(user.role==='artist'?'/artist/dashboard':'/client/dashboard')}>{user.role==='artist'?t('dashboard'):t('myRequests')}</Button>}
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-1 sm:gap-2"><LanguageSwitch/>{user&&<Button size="sm" variant="outline" onClick={()=>navigate(user.role==='artist'?'/artist/dashboard':'/client/dashboard')}>{user.role==='artist'?t('dashboard'):t('myRequests')}</Button>}
         {user&&<Button size="sm" variant="ghost" onClick={()=>void leave()}><LogOut size={15}/><span className="hidden sm:inline">{t('signOut')}</span></Button>}
       </div>
     </div></header>
-    <main className="mx-auto w-full max-w-5xl px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-8">
+    <main className="mx-auto w-full min-w-0 max-w-5xl px-3 pb-[max(2rem,env(safe-area-inset-bottom))] pt-5 sm:px-5 sm:pt-8">
       {claimNotice&&<div role="status" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted p-3 text-sm">
         <span>{claimNotice}</span>
         {claimFailed&&pendingFollowUp&&user?.role==='client'&&<Button variant="outline" size="sm" onClick={()=>void finishClaim(user,pendingFollowUp).catch(()=>setClaimNotice(t('claimError')))}>{t('continue')}</Button>}
