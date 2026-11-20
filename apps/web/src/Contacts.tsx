@@ -8,7 +8,7 @@ export default function ContactsFields({value,onChange,includeEmail=true}:{value
   const {t}=useI18n();
   return <div className="grid gap-4 sm:grid-cols-2">
     {fields.filter(x=>includeEmail||x!=='email').map(name=><div className="space-y-2" key={name}>
-      <Label htmlFor={'contact-'+name}>{name==='email'?t('contactEmail'):t(name)}</Label>
+      <Label htmlFor={'contact-'+name}>{name==='email'?t('contactEmail'):name==='tiktok'?'TikTok':name==='website'?'Website':t(name)}</Label>
       <Input id={'contact-'+name} type={name==='email'?'email':name==='website'||name==='tiktok'?'url':'text'} maxLength={140}
         placeholder={name==='website'?'https://example.com':name==='tiktok'?'https://www.tiktok.com/@artist':name==='telegram'?t('telegramHint'):name==='whatsapp'?t('whatsappHint'):name==='viber'?t('viberHint'):name==='instagram'?t('instagramHint'):t('optional')}
         value={value[name]??''}
