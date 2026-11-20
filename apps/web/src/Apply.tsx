@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { getArtist, submitRequest, uploadReference, type Artist, type Contacts, type RequestKind, type User, type AvailabilityPreference } from './api';
+import { avatarUrl, getArtist, submitRequest, uploadReference, type Artist, type Contacts, type RequestKind, type User, type AvailabilityPreference } from './api';
 import { SchedulePreferences } from './SchedulePreferences';
 import ContactsFields from './Contacts';
 import { useI18n } from './i18n';
@@ -27,11 +27,10 @@ export function ArtistPublic({slug,navigate}:{slug:string;navigate:(path:string)
   if(!artist)return <p className="py-12 text-center">{t('loading')}</p>;
   return <Card className="mx-auto max-w-xl"><CardHeader>
     <p className="text-xs uppercase tracking-widest text-muted-foreground">{t('artist')}</p>
-    <CardTitle className="text-3xl">{artist.display_name}</CardTitle>
-    <CardDescription>{artist.city}</CardDescription>
+    <div className="flex items-center gap-4">{artist.avatar_present&&<img src={avatarUrl(artist.slug)} alt={artist.display_name} className="h-20 w-20 shrink-0 rounded-full object-cover" />}<div className="min-w-0"><CardTitle className="break-words text-2xl sm:text-3xl">{artist.display_name}</CardTitle><CardDescription>{artist.city}</CardDescription></div></div>
   </CardHeader><CardContent className="space-y-5">
     <p className="whitespace-pre-wrap leading-relaxed">{artist.bio}</p>
-    <div className="flex flex-wrap gap-3">{Object.entries(artist.contact_channels).map(([name,value])=><span key={name} className="rounded-full bg-secondary px-3 py-1 text-sm">{name}: {value}</span>)}</div>
+    <div className="flex flex-wrap gap-3">{Object.entries(artist.contact_channels).map(([name,value])=>{const href=name==='instagram'?'https://www.instagram.com/'+value.replace(/^@/,''):name==='telegram'?'https://t.me/'+value.replace(/^@/,''):name==='tiktok'||name==='website'?value:null;return href?<a key={name} href={href} target="_blank" rel="noopener noreferrer" className="max-w-full break-all rounded-full bg-secondary px-3 py-2 text-sm underline">{name}</a>:<span key={name} className="max-w-full break-all rounded-full bg-secondary px-3 py-2 text-sm">{name}: {value}</span>})}</div>
     {artist.accepting_requests?<Button className="w-full" onClick={()=>navigate('/a/'+slug+'/apply')}>{t('createRequest')} <ArrowRight size={16}/></Button>
       :<p className="text-muted-foreground">{t('artistUnavailable')}</p>}
   </CardContent></Card>;
